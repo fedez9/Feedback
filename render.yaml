@@ -5,6 +5,12 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     envVars:
+      # Aggiungi queste due variabili d'ambiente
+      - key: CARGO_HOME
+        value: /opt/render/project/src/.cargo
+      - key: RUSTUP_HOME
+        value: /opt/render/project/src/.rustup
+      # Le tue variabili esistenti
       - key: TOKEN
         sync: false
       - key: WEBHOOK_URL
