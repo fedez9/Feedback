@@ -2,18 +2,7 @@ services:
   - type: web
     name: telegram-bot
     env: python
-    buildCommand: |
-      # 1) Installa curl e gcc
-      apt-get update && apt-get install -y curl build-essential
-      # 2) Installa rustup (e quindi cargo & rustc)
-      curl https://sh.rustup.rs -sSf | sh -s -- -y
-      source $HOME/.cargo/env
-      # 3) Imposta variabili per maturin
-      mkdir -p /opt/render/project/src/.cargo /opt/render/project/src/.rustup
-      export CARGO_HOME=/opt/render/project/src/.cargo
-      export RUSTUP_HOME=/opt/render/project/src/.rustup
-      # 4) Installa dipendenze Python
-      pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     envVars:
       - key: TOKEN
