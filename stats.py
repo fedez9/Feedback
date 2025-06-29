@@ -54,62 +54,45 @@ def ensure_user_stats(stats: Dict[int, dict], user_id: int, username: str) -> di
         }
     return stats[user_id]
 
-def update_feedback_stats(
-    stats: Dict[int, dict],
-    sender_id: int, sender_username: str,
-    target_id: int, target_username: str
-) -> None:
-    today = datetime.date.today().isoformat()
-    now = datetime.datetime.now().isoformat()
+from datetime import datetime
 
-    sender_stats = ensure_user_stats(stats, sender_id, sender_username)
-    target_stats = ensure_user_stats(stats, target_id, target_username)
+def update_feedback_stats(stats, sender_id, sender_username, target_id, target_username):
+    today = datetime.now().strftime("%Y-%m-%d")
 
-    if sender_stats["feedback_fatti"].get("daily_date") != today:
-        if sender_stats.get("history") is None:
-            sender_stats["history"] = {}
-        if sender_stats["feedback_fatti"]["daily_date"]:
-            sender_stats["history"][sender_stats["feedback_fatti"]["daily_date"]] = {
-                "feedback_fatti": sender_stats["feedback_fatti"]["daily_count"],
-                "feedback_ricevuti": sender_stats["feedback_ricevuti"]["daily_count"]
+    # Inizializza struttura sender se non esiste
+    if sender_id not in stats:
+        stats[sender_id] = {
+            "username": sender_username,
+            "feedback_fatti": {
+                "daily_date": today,
+                "daily_count": 0,
+                "total": 0
             }
-        sender_stats["feedback_fatti"]["daily_count"] = 0
-        sender_stats["feedback_fatti"]["daily_date"] = today
-    sender_stats["feedback_fatti"]["count"] += 1
-    sender_stats["feedback_fatti"]["daily_count"] += 1
-    sender_stats["feedback_fatti"]["last"] = {
-        "target_id": target_id,
-        "target_username": target_username,
-        "timestamp": now
-    }
+        }
 
-    if target_stats["feedback_ricevuti"].get("daily_date") != today:
-        if target_stats.get("history") is None:
-            target_stats["history"] = {}
-        if target_stats["feedback_ricevuti"]["daily_date"]:
-            target_stats["history"][target_stats["feedback_ricevuti"]["daily_date"]] = {
-                "feedback_fatti": target_stats["feedback_fatti"]["daily_count"],
-                "feedback_ricevuti": target_stats["feedback_ricevuti"]["daily_count"]
+    sender_stats = stats[sender_id]
+    feedback_fatti = sender_stats.setdefault("feedback_fatti", {})
+
+    # Controlla e resetta il contatore giornaliero se la data è cambiata
+    if feedback_fatti.get("daily_date") != today:
+        feedback_fatti["daily_date"] = today
+        feedback_fatti["daily_count"] = 0
+
+    feedback_fatti["daily_count"] = feedback_fatti.get("daily_count", 0) + 1
+    feedback_fatti["total"] = feedback_fatti.get("total", 0) + 1
+
+    # Inizializza struttura target se non esiste
+    if target_id not in stats:
+        stats[target_id] = {
+            "username": target_username,
+            "feedback_ricevuti": {
+                "total": 0
             }
-        target_stats["feedback_ricevuti"]["daily_count"] = 0
-        target_stats["feedback_ricevuti"]["daily_date"] = today
-    target_stats["feedback_ricevuti"]["count"] += 1
-    target_stats["feedback_ricevuti"]["daily_count"] += 1
-    target_stats["feedback_ricevuti"]["last"] = {
-        "sender_id": sender_id,
-        "sender_username": sender_username,
-        "timestamp": now
-    }
+        }
 
-    total_feedback = sum(u["feedback_ricevuti"]["count"] for u in stats.values())
-    if total_feedback > 0:
-        for user_data in stats.values():
-            user_data["proporzione"] = (user_data["feedback_ricevuti"]["count"] / total_feedback) * 100
-    else:
-        for user_data in stats.values():
-            user_data["proporzione"] = 0
-
-    save_stats(stats)
+    target_stats = stats[target_id]
+    feedback_ricevuti = target_stats.setdefault("feedback_ricevuti", {})
+    feedback_ricevuti["total"] = feedback_ricevuti.get("total", 0) + 1
 
 
 def get_feedback_trend_image(stats: Dict[int, dict], user_id: int, days: int = 7) -> BytesIO:
