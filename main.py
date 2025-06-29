@@ -384,9 +384,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target.setdefault("cards_ricevute", {s: 0 for s in range(0, 6)})
 
         # Aggiorna carte donate del mittente
-        sender["cards_donate"][stars] += 1
+        sender["cards_ricevute"][stars] += 1
         # Aggiorna carte ricevute del destinatario
-        target["cards_ricevute"][stars] += 1
+        target["cards_donate"][stars] += 1
 
         # Salva le modifiche
         save_group_users(group_users)
