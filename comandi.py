@@ -22,6 +22,20 @@ GRUPPO_FEEDBACK_DA_ACCETTARE = os.getenv("GRUPPO_FEEDBACK_DA_ACCETTARE")
 GRUPPO_FEEDBACK = os.getenv("GRUPPO_FEEDBACK")
 GRUPPO_STAFF = os.getenv("GRUPPO_STAFF")
 
+async def get_user_details(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """
+    Recupera i dettagli di un utente da Telegram.
+    Restituisce username, o first_name, o l'ID come fallback.
+    """
+    try:
+        chat = await context.bot.get_chat(user_id)
+        # Restituisce il nome utente raw, che verrà poi escapato al momento dell'invio
+        return chat.username or chat.first_name or str(user_id)
+    except Exception as e:
+        logger.error(f"Errore nel recupero dei dettagli per l'utente {user_id}: {e}")
+        # Se la chiamata API fallisce, restituisce l'ID come stringa
+        return str(user_id)
+
 async def info_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global group_users
     group_users = load_group_users()
@@ -36,7 +50,6 @@ async def info_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat_id not in group_users:
         group_users[chat_id] = {}
 
-    # Trova l'utente target
     target_user = None
     if identifier.lstrip("-").isdigit():
         uid = int(identifier)
@@ -52,7 +65,6 @@ async def info_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Utente non trovato nel database.")
         return
 
-    # Costruisci il messaggio
     nome = escape_markdown(target_user.get('username', 'N/A'), version=2)
     verified_status = "✅" if target_user.get("verified") else "❌"
     limited_status = "🔕" if target_user.get("limited") else "🔔"
@@ -66,13 +78,12 @@ async def info_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"*🔍 Limitato\\:* {limited_status}"
     )
 
-    # Aggiungi un pulsante “Maggiori info”
     keyboard = [
         [InlineKeyboardButton("➕ Maggiori info", callback_data=f"menu_{target_user['id']}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-
     await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=reply_markup)
+
 
 @restricted
 async def add_invio(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -84,33 +95,21 @@ async def add_invio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     args = context.args
     if len(args) < 1:
-        await update.message.reply_text(
-            "*🆘 Comando errato!*\n\nUsa: /addinv @username|id [numero] [stelle]",
-            parse_mode=ParseMode.MARKDOWN_V2
-        )
+        await update.message.reply_text("*🆘 Comando errato!*\n\nUsa: /addinv @username|id [numero] [stelle]", parse_mode=ParseMode.MARKDOWN_V2)
         return
 
     identifier = args[0]
     amount = 1
     stars = 0
-
     if len(args) >= 2:
-        try:
-            amount = int(args[1])
-        except ValueError:
-            await update.message.reply_text("Il numero deve essere un intero.")
-            return
+        try: amount = int(args[1])
+        except ValueError: await update.message.reply_text("Il numero deve essere un intero."); return
     if len(args) >= 3:
         try:
             stars = int(args[2])
-            if not 0 <= stars <= 5:
-                await update.message.reply_text("Il numero di stelle deve essere compreso tra 0 e 5.")
-                return
-        except ValueError:
-            await update.message.reply_text("Il numero di stelle deve essere un intero.")
-            return
+            if not 0 <= stars <= 5: await update.message.reply_text("Il numero di stelle deve essere compreso tra 0 e 5."); return
+        except ValueError: await update.message.reply_text("Il numero di stelle deve essere un intero."); return
 
-    # Trova l'utente o crealo se non esiste
     target_user = None
     uid = None
     if identifier.lstrip("-").isdigit():
@@ -120,37 +119,32 @@ async def add_invio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         username = identifier.lstrip("@")
         for user in group_users[chat_id].values():
             if user.get("username", "").lower() == username.lower():
-                target_user = user
-                break
+                target_user = user; break
 
     if not target_user:
         if uid:
-            await update.message.reply_text(f"Utente con ID {uid} non trovato. Verrà creato un nuovo profilo.")
+            real_username = await get_user_details(uid, context)
+            await update.message.reply_text(f"L'utente '{real_username}' (ID: {uid}) non è nel database. Verrà creato un nuovo profilo.")
             target_user = {
-                "id": uid, "username": f"utente_{uid}", "feedback_ricevuti": 0,
-                "feedback_fatti": 0, "verified": False, "limited": False,
-                "cards_donate": {s: 0 for s in range(6)},
-                "cards_ricevute": {s: 0 for s in range(6)}
+                "id": uid, "username": real_username, "feedback_ricevuti": 0, "feedback_fatti": 0,
+                "verified": False, "limited": False,
+                "cards_donate": {s: 0 for s in range(6)}, "cards_ricevute": {s: 0 for s in range(6)}
             }
             group_users[chat_id][uid] = target_user
         else:
-            await update.message.reply_text("Utente non trovato. Per creare un nuovo utente, usa il suo ID numerico.")
-            return
+            await update.message.reply_text("Utente non trovato. Per creare un nuovo utente, usa il suo ID numerico."); return
 
     target_user["feedback_fatti"] = target_user.get("feedback_fatti", 0) + amount
     cards_key = "cards_ricevute"
-    if isinstance(target_user.get(cards_key), list):
-        target_user[cards_key] = {i: v for i, v in enumerate(target_user.get(cards_key, []))}
-    target_user.setdefault(cards_key, {s: 0 for s in range(0, 6)})
+    if isinstance(target_user.get(cards_key), list): target_user[cards_key] = {i: v for i, v in enumerate(target_user.get(cards_key, []))}
+    target_user.setdefault(cards_key, {s: 0 for s in range(6)})
     target_user[cards_key][stars] = target_user[cards_key].get(stars, 0) + amount
 
     save_group_users(group_users)
     nome = escape_markdown(target_user['username'], version=2)
     response = f"_✅ Feedback inviati aggiornati, @{nome} è ora a {target_user['feedback_fatti']}_"
-    if stars != 0:
-        response += f"\n\n_{'Aggiunta' if amount == 1 else 'Aggiunte'} {amount} {'carta' if amount == 1 else 'carte'} {'ricevuta' if amount == 1 else 'ricevute'} da {stars}🌟\\._"
-    else:
-        response += f"\n\n_{'Aggiunta' if amount == 1 else 'Aggiunte'} {amount} {'carta' if amount == 1 else 'carte'} {'ricevuta' if amount == 1 else 'ricevute'}\\._"
+    if stars != 0: response += f"\n\n_{'Aggiunta' if amount == 1 else 'Aggiunte'} {amount} {'carta' if amount == 1 else 'carte'} {'ricevuta' if amount == 1 else 'ricevute'} da {stars}🌟\\._"
+    else: response += f"\n\n_{'Aggiunta' if amount == 1 else 'Aggiunte'} {amount} {'carta' if amount == 1 else 'carte'} {'ricevuta' if amount == 1 else 'ricevute'}\\._"
     await update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN_V2)
     await check_limit_condition(update, context, target_user)
 
@@ -160,37 +154,25 @@ async def add_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global group_users
     group_users = load_group_users()
     chat_id = int(GRUPPO_SCAMBI)
-    if chat_id not in group_users:
-        group_users[chat_id] = {}
+    if chat_id not in group_users: group_users[chat_id] = {}
 
     args = context.args
     if len(args) < 1:
-        await update.message.reply_text(
-            "*🆘 Comando errato!*\n\nUsa: /addfeed @username|id [numero] [stelle]",
-            parse_mode=ParseMode.MARKDOWN_V2
-        )
+        await update.message.reply_text("*🆘 Comando errato!*\n\nUsa: /addfeed @username|id [numero] [stelle]", parse_mode=ParseMode.MARKDOWN_V2)
         return
 
     identifier = args[0]
     amount = 1
     stars = 0
     if len(args) >= 2:
-        try:
-            amount = int(args[1])
-        except ValueError:
-            await update.message.reply_text("Il numero deve essere un intero.")
-            return
+        try: amount = int(args[1])
+        except ValueError: await update.message.reply_text("Il numero deve essere un intero."); return
     if len(args) >= 3:
         try:
             stars = int(args[2])
-            if not 0 <= stars <= 5:
-                await update.message.reply_text("Il numero di stelle deve essere compreso tra 0 e 5.")
-                return
-        except ValueError:
-            await update.message.reply_text("Il numero di stelle deve essere un intero.")
-            return
+            if not 0 <= stars <= 5: await update.message.reply_text("Il numero di stelle deve essere compreso tra 0 e 5."); return
+        except ValueError: await update.message.reply_text("Il numero di stelle deve essere un intero."); return
 
-    # Trova l'utente o crealo se non esiste
     target_user = None
     uid = None
     if identifier.lstrip("-").isdigit():
@@ -200,33 +182,27 @@ async def add_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
         username = identifier.lstrip("@")
         for user in group_users[chat_id].values():
             if user.get("username", "").lower() == username.lower():
-                target_user = user
-                break
+                target_user = user; break
 
     if not target_user:
         if uid:
-            await update.message.reply_text(f"Utente con ID {uid} non trovato. Verrà creato un nuovo profilo.")
+            real_username = await get_user_details(uid, context)
+            await update.message.reply_text(f"L'utente '{real_username}' (ID: {uid}) non è nel database. Verrà creato un nuovo profilo.")
             target_user = {
-                "id": uid, "username": f"utente_{uid}", "feedback_ricevuti": 0,
-                "feedback_fatti": 0, "verified": False, "limited": False,
-                "cards_donate": {s: 0 for s in range(6)},
-                "cards_ricevute": {s: 0 for s in range(6)}
+                "id": uid, "username": real_username, "feedback_ricevuti": 0, "feedback_fatti": 0,
+                "verified": False, "limited": False,
+                "cards_donate": {s: 0 for s in range(6)}, "cards_ricevute": {s: 0 for s in range(6)}
             }
             group_users[chat_id][uid] = target_user
         else:
-            await update.message.reply_text("Utente non trovato. Per creare un nuovo utente, usa il suo ID numerico.")
-            return
+            await update.message.reply_text("Utente non trovato. Per creare un nuovo utente, usa il suo ID numerico."); return
 
-    # Aggiorna feedback_ricevuti
     target_user["feedback_ricevuti"] = target_user.get("feedback_ricevuti", 0) + amount
-    # Aggiorna carte_donate
     cards_key = "cards_donate"
-    if isinstance(target_user.get(cards_key), list):
-        target_user[cards_key] = {i: v for i, v in enumerate(target_user.get(cards_key, []))}
-    target_user.setdefault(cards_key, {s: 0 for s in range(0, 6)})
+    if isinstance(target_user.get(cards_key), list): target_user[cards_key] = {i: v for i, v in enumerate(target_user.get(cards_key, []))}
+    target_user.setdefault(cards_key, {s: 0 for s in range(6)})
     target_user[cards_key][stars] = target_user[cards_key].get(stars, 0) + amount
 
-    # Verifica automatico
     if target_user["feedback_ricevuti"] >= 25 and not target_user.get("verified", False):
         target_user["verified"] = True
         nome = escape_markdown(target_user['username'], version=2)
@@ -236,10 +212,8 @@ async def add_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_group_users(group_users)
     nome = escape_markdown(target_user['username'], version=2)
     response = f"_✅ Feedback ricevuti aggiornati, @{nome} è ora a {target_user['feedback_ricevuti']}_"
-    if stars != 0:
-        response += f"\n\n_{'Aggiunta' if amount == 1 else 'Aggiunte'} {amount} {'carta' if amount == 1 else 'carte'} {'donata' if amount == 1 else 'donate'} da {stars}🌟\\._"
-    else:
-        response += f"\n\n_{'Aggiunta' if amount == 1 else 'Aggiunte'} {amount} {'carta' if amount == 1 else 'carte'} {'donata' if amount == 1 else 'donate'}\\._"
+    if stars != 0: response += f"\n\n_{'Aggiunta' if amount == 1 else 'Aggiunte'} {amount} {'carta' if amount == 1 else 'carte'} {'donata' if amount == 1 else 'donate'} da {stars}🌟\\._"
+    else: response += f"\n\n_{'Aggiunta' if amount == 1 else 'Aggiunte'} {amount} {'carta' if amount == 1 else 'carte'} {'donata' if amount == 1 else 'donate'}\\._"
     await update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN_V2)
     await check_limit_condition(update, context, target_user)
 
@@ -249,37 +223,25 @@ async def rem_invio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global group_users
     group_users = load_group_users()
     chat_id = int(GRUPPO_SCAMBI)
-    if chat_id not in group_users:
-        group_users[chat_id] = {}
+    if chat_id not in group_users: group_users[chat_id] = {}
 
     args = context.args
     if len(args) < 1:
-        await update.message.reply_text(
-            "*🆘 Comando errato!*\n\nUsa: /reminv @username|id [numero] [stelle]",
-            parse_mode=ParseMode.MARKDOWN_V2
-        )
+        await update.message.reply_text("*🆘 Comando errato!*\n\nUsa: /reminv @username|id [numero] [stelle]", parse_mode=ParseMode.MARKDOWN_V2)
         return
 
     identifier = args[0]
     amount = 1
     stars = 0
     if len(args) >= 2:
-        try:
-            amount = int(args[1])
-        except ValueError:
-            await update.message.reply_text("Il numero deve essere un intero.")
-            return
+        try: amount = int(args[1])
+        except ValueError: await update.message.reply_text("Il numero deve essere un intero."); return
     if len(args) >= 3:
         try:
             stars = int(args[2])
-            if not 0 <= stars <= 5:
-                await update.message.reply_text("Il numero di stelle deve essere compreso tra 0 e 5.")
-                return
-        except ValueError:
-            await update.message.reply_text("Il numero di stelle deve essere un intero.")
-            return
+            if not 0 <= stars <= 5: await update.message.reply_text("Il numero di stelle deve essere compreso tra 0 e 5."); return
+        except ValueError: await update.message.reply_text("Il numero di stelle deve essere un intero."); return
 
-    # Trova l'utente o crealo se non esiste
     target_user = None
     uid = None
     if identifier.lstrip("-").isdigit():
@@ -289,39 +251,32 @@ async def rem_invio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         username = identifier.lstrip("@")
         for user in group_users[chat_id].values():
             if user.get("username", "").lower() == username.lower():
-                target_user = user
-                break
+                target_user = user; break
 
     if not target_user:
         if uid:
-            await update.message.reply_text(f"Utente con ID {uid} non trovato. Verrà creato un nuovo profilo.")
+            real_username = await get_user_details(uid, context)
+            await update.message.reply_text(f"L'utente '{real_username}' (ID: {uid}) non è nel database. Verrà creato un nuovo profilo.")
             target_user = {
-                "id": uid, "username": f"utente_{uid}", "feedback_ricevuti": 0,
-                "feedback_fatti": 0, "verified": False, "limited": False,
-                "cards_donate": {s: 0 for s in range(6)},
-                "cards_ricevute": {s: 0 for s in range(6)}
+                "id": uid, "username": real_username, "feedback_ricevuti": 0, "feedback_fatti": 0,
+                "verified": False, "limited": False,
+                "cards_donate": {s: 0 for s in range(6)}, "cards_ricevute": {s: 0 for s in range(6)}
             }
             group_users[chat_id][uid] = target_user
         else:
-            await update.message.reply_text("Utente non trovato. Per creare un nuovo utente, usa il suo ID numerico.")
-            return
+            await update.message.reply_text("Utente non trovato. Per creare un nuovo utente, usa il suo ID numerico."); return
 
-    # Decrementa feedback_fatti
     target_user["feedback_fatti"] = max(0, target_user.get("feedback_fatti", 0) - amount)
-    # Decrementa carte_ricevute
     cards_key = "cards_ricevute"
-    if isinstance(target_user.get(cards_key), list):
-        target_user[cards_key] = {i: v for i, v in enumerate(target_user.get(cards_key, []))}
-    target_user.setdefault(cards_key, {s: 0 for s in range(0, 6)})
+    if isinstance(target_user.get(cards_key), list): target_user[cards_key] = {i: v for i, v in enumerate(target_user.get(cards_key, []))}
+    target_user.setdefault(cards_key, {s: 0 for s in range(6)})
     target_user[cards_key][stars] = max(0, target_user[cards_key].get(stars, 0) - amount)
 
     save_group_users(group_users)
     nome = escape_markdown(target_user['username'], version=2)
     response = f"_✅ Feedback inviati aggiornati, @{nome} è ora a {target_user['feedback_fatti']}_"
-    if stars != 0:
-        response += f"\n\n_{'Rimossa' if amount == 1 else 'Rimosse'} {amount} {'carta' if amount == 1 else 'carte'} {'ricevuta' if amount == 1 else 'ricevute'} da {stars}🌟\\._"
-    else:
-        response += f"\n\n_{'Rimossa' if amount == 1 else 'Rimosse'} {amount} {'carta' if amount == 1 else 'carte'} {'ricevuta' if amount == 1 else 'ricevute'}\\._"
+    if stars != 0: response += f"\n\n_{'Rimossa' if amount == 1 else 'Rimosse'} {amount} {'carta' if amount == 1 else 'carte'} {'ricevuta' if amount == 1 else 'ricevute'} da {stars}🌟\\._"
+    else: response += f"\n\n_{'Rimossa' if amount == 1 else 'Rimosse'} {amount} {'carta' if amount == 1 else 'carte'} {'ricevuta' if amount == 1 else 'ricevute'}\\._"
     await update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN_V2)
     await check_limit_condition(update, context, target_user)
 
@@ -331,37 +286,25 @@ async def rem_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global group_users
     group_users = load_group_users()
     chat_id = int(GRUPPO_SCAMBI)
-    if chat_id not in group_users:
-        group_users[chat_id] = {}
+    if chat_id not in group_users: group_users[chat_id] = {}
 
     args = context.args
     if len(args) < 1:
-        await update.message.reply_text(
-            "*🆘 Comando errato!*\n\nUsa: /remfeed @username|id [numero] [stelle]",
-            parse_mode=ParseMode.MARKDOWN_V2
-        )
+        await update.message.reply_text("*🆘 Comando errato!*\n\nUsa: /remfeed @username|id [numero] [stelle]", parse_mode=ParseMode.MARKDOWN_V2)
         return
 
     identifier = args[0]
     amount = 1
     stars = 0
     if len(args) >= 2:
-        try:
-            amount = int(args[1])
-        except ValueError:
-            await update.message.reply_text("Il numero deve essere un intero.")
-            return
+        try: amount = int(args[1])
+        except ValueError: await update.message.reply_text("Il numero deve essere un intero."); return
     if len(args) >= 3:
         try:
             stars = int(args[2])
-            if not 0 <= stars <= 5:
-                await update.message.reply_text("Il numero di stelle deve essere compreso tra 0 e 5.")
-                return
-        except ValueError:
-            await update.message.reply_text("Il numero di stelle deve essere un intero.")
-            return
+            if not 0 <= stars <= 5: await update.message.reply_text("Il numero di stelle deve essere compreso tra 0 e 5."); return
+        except ValueError: await update.message.reply_text("Il numero di stelle deve essere un intero."); return
 
-    # Trova l'utente o crealo se non esiste
     target_user = None
     uid = None
     if identifier.lstrip("-").isdigit():
@@ -371,49 +314,40 @@ async def rem_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
         username = identifier.lstrip("@")
         for user in group_users[chat_id].values():
             if user.get("username", "").lower() == username.lower():
-                target_user = user
-                break
+                target_user = user; break
 
     if not target_user:
         if uid:
-            await update.message.reply_text(f"Utente con ID {uid} non trovato. Verrà creato un nuovo profilo.")
+            real_username = await get_user_details(uid, context)
+            await update.message.reply_text(f"L'utente '{real_username}' (ID: {uid}) non è nel database. Verrà creato un nuovo profilo.")
             target_user = {
-                "id": uid, "username": f"utente_{uid}", "feedback_ricevuti": 0,
-                "feedback_fatti": 0, "verified": False, "limited": False,
-                "cards_donate": {s: 0 for s in range(6)},
-                "cards_ricevute": {s: 0 for s in range(6)}
+                "id": uid, "username": real_username, "feedback_ricevuti": 0, "feedback_fatti": 0,
+                "verified": False, "limited": False,
+                "cards_donate": {s: 0 for s in range(6)}, "cards_ricevute": {s: 0 for s in range(6)}
             }
             group_users[chat_id][uid] = target_user
         else:
-            await update.message.reply_text("Utente non trovato. Per creare un nuovo utente, usa il suo ID numerico.")
-            return
+            await update.message.reply_text("Utente non trovato. Per creare un nuovo utente, usa il suo ID numerico."); return
 
     current_feed = target_user.get("feedback_ricevuti", 0)
     target_user["feedback_ricevuti"] = max(0, current_feed - amount)
     cards_key = "cards_donate"
-    if isinstance(target_user.get(cards_key), list):
-        target_user[cards_key] = {i: v for i, v in enumerate(target_user.get(cards_key, []))}
-    target_user.setdefault(cards_key, {s: 0 for s in range(0, 6)})
+    if isinstance(target_user.get(cards_key), list): target_user[cards_key] = {i: v for i, v in enumerate(target_user.get(cards_key, []))}
+    target_user.setdefault(cards_key, {s: 0 for s in range(6)})
     target_user[cards_key][stars] = max(0, target_user[cards_key].get(stars, 0) - amount)
 
     if current_feed >= 25 and target_user["feedback_ricevuti"] < 25:
         target_user["verified"] = False
         nome = escape_markdown(target_user['username'], version=2)
-        await update.message.reply_text(
-            f"_⚠️ L'utente @{nome} ha meno di 25 feedback e non è più verificato\\._",
-            parse_mode=ParseMode.MARKDOWN_V2
-        )
+        await update.message.reply_text(f"_⚠️ L'utente @{nome} ha meno di 25 feedback e non è più verificato\\._", parse_mode=ParseMode.MARKDOWN_V2)
 
     save_group_users(group_users)
     nome = escape_markdown(target_user['username'], version=2)
     response = f"_✅ Feedback ricevuti aggiornati, @{nome} è ora a {target_user['feedback_ricevuti']}_"
-    if stars != 0:
-        response += f"\n\n_{'Rimossa' if amount == 1 else 'Rimosse'} {amount} {'carta' if amount == 1 else 'carte'} {'donata' if amount == 1 else 'donate'} da {stars}🌟\\._"
-    else:
-        response += f"\n\n_{'Rimossa' if amount == 1 else 'Rimosse'} {amount} {'carta' if amount == 1 else 'carte'} {'donata' if amount == 1 else 'donate'}\\._"
+    if stars != 0: response += f"\n\n_{'Rimossa' if amount == 1 else 'Rimosse'} {amount} {'carta' if amount == 1 else 'carte'} {'donata' if amount == 1 else 'donate'} da {stars}🌟\\._"
+    else: response += f"\n\n_{'Rimossa' if amount == 1 else 'Rimosse'} {amount} {'carta' if amount == 1 else 'carte'} {'donata' if amount == 1 else 'donate'}\\._"
     await update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN_V2)
     await check_limit_condition(update, context, target_user)
-
 
 @restricted
 async def verify_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
