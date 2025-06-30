@@ -214,7 +214,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Costruisci il testo base
         nome = escape_markdown(user.get('username', 'N/A'), version=2)
         verified_status = "✅" if user.get("verified") else "❌"
-        limited_status = "🔕" if user.get("limited") else "🔔"
+        limited_status = "⛔️" if user.get("limited") else "🆓"
         base_msg = (
             f"_ℹ️ Informazioni relative all'utente_\n\n"
             f"*🔢 ID:* `{user['id']}`\n"
@@ -318,14 +318,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mittente = escape_markdown(pending["sender_username"], version=2)
         destinatario = escape_markdown(pending["target_username"], version=2)
         mex = escape_markdown(pending["feedback_text"], version=2)
-        new_caption = (
-            f"_🆕 Feedback ricevuto_ 💪 *Accettato\\!*\n\n"
-            f"*Da\\:* @{mittente} [`{sender_id}`]\n"
-            f"*Per\\:* @{destinatario} [`{target_id}`]\n"
-            f"*Messaggio\\:* {mex}"
-        )
+        caption = (f"_🆕 Feedback ricevuto\\!_\n\n*Da\\:* @{mittente} \\[`{pending['user_id']}`\\]\n"
+                   f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n*Messaggio\\:* {mex}")
+        testo = caption + "\n\n*💪 Feedback accettato\\.*"
         await query.edit_message_caption(
-            caption=new_caption,
+            caption=testo,
             parse_mode=ParseMode.MARKDOWN_V2
         )
 
@@ -345,8 +342,8 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(
             chat_id=update.effective_chat.id,  # stessa chat di revisione
             text=(
-                "✨ _Feedback accettato\\!_\n"
-                "Quante stelle vuoi assegnare\\?"
+                "🌟 *Feedback accettato\\!*\n\n"
+                "_Quante stelle vuoi assegnare\\?_"
             ),
             parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=InlineKeyboardMarkup(keyboard)
@@ -395,11 +392,13 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mittente = escape_markdown(pending['sender_username'], version=2)
         destinatario = escape_markdown(pending['target_username'], version=2)
         mex = escape_markdown(pending['feedback_text'], version=2)
+        stelle = "Generico" if stars == 0 else str(stars)
+            
         caption = (
-            f"_⭐ Feedback Valutato\\! ⭐_\n\n"
-            f"*Da\\:* @{mittente} [`{sender_id}`]\n"
-            f"*Per\\:* @{destinatario} [`{target_id}`]\n"
-            f"*Stelle\\:* {stars}⭐️\n"
+            f"_🤙 Feedback Accettato\\!_\n\n"
+            f"*Da\\:* @{mittente} \\[`{sender_id}`\\]\n"
+            f"*Per\\:* @{destinatario} \\[`{target_id}`\\]\n"
+            f"*Stelle\\:* {stelle}🌟\n"
             f"*Messaggio\\:* {mex}"
         )
         await context.bot.send_photo(
@@ -409,11 +408,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.MARKDOWN_V2
         )
 
-        # 2) Risposta di conferma e pulizia del pending
-        await query.edit_message_text(
-            f"✅ Hai assegnato *{stars}⭐️* a @{pending['target_username']}\\.",
-            parse_mode=ParseMode.MARKDOWN_V2
-        )
         del pending_feedback[request_id]
         return
 
