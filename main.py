@@ -407,6 +407,10 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             caption=caption,
             parse_mode=ParseMode.MARKDOWN_V2
         )
+        await query.edit_message_text(
+            f"✅ Feedback accettato da @{mittente} per @{destinatario}\\.",
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
 
         del pending_feedback[request_id]
         return
