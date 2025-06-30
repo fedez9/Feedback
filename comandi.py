@@ -67,7 +67,7 @@ async def info_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     nome = escape_markdown(target_user.get('username', 'N/A'), version=2)
     verified_status = "✅" if target_user.get("verified") else "❌"
-    limited_status = "🔕" if target_user.get("limited") else "🔔"
+    limited_status = "⛔️" if target_user.get("limited") else "🆓"
     msg = (
         f"_ℹ️ Informazioni relative all'utente_\n\n"
         f"*🔢 ID\\:* `{target_user['id']}`\n"
@@ -206,7 +206,7 @@ async def add_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if target_user["feedback_ricevuti"] >= 25 and not target_user.get("verified", False):
         target_user["verified"] = True
         nome = escape_markdown(target_user['username'], version=2)
-        msg = f"_🎉 L'utente @{nome} ha raggiunto i 25 feedback ed è stato verificato\\!_"
+        msg = f"_➕ L'utente @{nome} ha raggiunto i 25 feedback\\._\n\n*🔝 È stato verificato\\.*"
         await context.bot.send_message(chat_id=GRUPPO_STAFF, text=msg, parse_mode=ParseMode.MARKDOWN_V2)
 
     save_group_users(group_users)
@@ -339,7 +339,7 @@ async def rem_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if current_feed >= 25 and target_user["feedback_ricevuti"] < 25:
         target_user["verified"] = False
         nome = escape_markdown(target_user['username'], version=2)
-        await update.message.reply_text(f"_⚠️ L'utente @{nome} ha meno di 25 feedback e non è più verificato\\._", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text(f"_➖ L'utente @{nome} ha meno di 25 feedback\\._\n\n*🚮Non è più verificato\\.*", parse_mode=ParseMode.MARKDOWN_V2)
 
     save_group_users(group_users)
     nome = escape_markdown(target_user['username'], version=2)
@@ -359,7 +359,7 @@ async def verify_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     args = context.args
     if len(args) < 1:
-        await update.message.reply_text("*🆘 Comando errato\\!*\n\nUsa:/verfica @username o id", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text("*🆘 Comando errato!*\n\nUsa: /verifica @username|id", parse_mode=ParseMode.MARKDOWN_V2)
         return
 
     identifier = args[0]
@@ -382,7 +382,7 @@ async def verify_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_group_users(group_users)
     nome = escape_markdown(target_user['username'], version=2)
     await update.message.reply_text(
-        f"_✅ L'utente @{nome} è stato verificato\\!_",
+        f"_✅ L'utente @{nome} è stato verificato\\._",
         parse_mode=ParseMode.MARKDOWN_V2
     )
 
@@ -398,7 +398,7 @@ async def unverify_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     if len(args) < 1:
         await update.message.reply_text(
-            "*🆘 Comando errato\\!*\n\nUsa: /sverifica @username o id",
+            "*🆘 Comando errato!*\n\nUsa: /sverifica @username|id",
             parse_mode=ParseMode.MARKDOWN_V2
         )
         return
@@ -423,7 +423,7 @@ async def unverify_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_group_users(group_users)
     nome = escape_markdown(target_user['username'], version=2)
     await update.message.reply_text(
-        f"_✅ L'utente @{nome} non risulta più verificato\\._",
+        f"_✅ L'utente @{nome} è stato sverificato\\._",
         parse_mode=ParseMode.MARKDOWN_V2
     )
 
@@ -439,7 +439,7 @@ async def limit_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     if not args:
         await update.message.reply_text(
-            "*🆘 Comando errato\\!* \n\nUsa: /limit @username o id",
+            "*🆘 Comando errato!*\n\nUsa: /limita @username|id",
             parse_mode=ParseMode.MARKDOWN_V2
         )
         return
@@ -464,7 +464,7 @@ async def limit_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_group_users(group_users)
     nome = escape_markdown(target_user['username'], version=2)
     await update.message.reply_text(
-        f"_✅ L'utente @{nome} è stato limitato_",
+        f"_✅ L'utente @{nome} è stato limitato\\._",
         parse_mode=ParseMode.MARKDOWN_V2
     )
 
@@ -480,7 +480,7 @@ async def unlimit_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     if not args:
         await update.message.reply_text(
-            "*🆘 Comando errato\\!* \n\nUsa: /unlimit @username o id",
+            "*🆘 Comando errato!*\n\nUsa: /unlimita @username|id",
             parse_mode=ParseMode.MARKDOWN_V2
         )
         return
@@ -509,7 +509,7 @@ async def unlimit_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_group_users(group_users)
     nome = escape_markdown(target_user['username'], version=2)
     await update.message.reply_text(
-        f"_✅ L'utente @{nome} è stato rimosso dai limitati_",
+        f"_✅ L'utente @{nome} è stato unlimitato\\._",
         parse_mode=ParseMode.MARKDOWN_V2
     )
 
@@ -518,7 +518,7 @@ async def check_limit_condition(update: Update, context: ContextTypes.DEFAULT_TY
     diff = user.get("feedback_ricevuti", 0) - user.get("feedback_fatti", 0)
     if user.get("limited") and diff >= 0:
         nome = escape_markdown(user.get("username", "Unknown"), version=2)
-        msg = f"⚠️ L'utente @{nome} ha pareggiato i feed ha ora un divario di {diff}\\."
+        msg = f"_🟰 L'utente @{nome} ha pareggiato i feedback\\._\n\n*Ora ha un divario di {diff}\\.*"
         await context.bot.send_message(chat_id=GRUPPO_STAFF, text=msg, parse_mode=ParseMode.MARKDOWN_V2)
 
 async def show_commands(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
