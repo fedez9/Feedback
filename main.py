@@ -319,11 +319,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         destinatario = escape_markdown(pending["target_username"], version=2)
         mex = escape_markdown(pending["feedback_text"], version=2)
         caption = (
-            f"_🆕 Feedback ricevuto!_\n\n"
-            f"*Da:* @{mittente} [`{pending['user_id']}`]\n"
-            f"*Per:* @{destinatario} [`{pending['target_user_id']}`]\n"
-            f"*Messaggio:* {mex}\n\n"
-            f"*Quante stelle vuoi assegnare?*"
+            f"_🆕 Feedback ricevuto\\!_\n\n"
+            f"*Da\\:* @{mittente} [`{pending['user_id']}`]\n"
+            f"*Per\\:* @{destinatario} [`{pending['target_user_id']}`]\n"
+            f"*Messaggio\\:* {mex}\n\n"
+            f"*Quante stelle vuoi assegnare\\?*"
         )
 
         # 3) Costruisco la tastiera a stelle
@@ -394,11 +394,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mex = escape_markdown(pending['feedback_text'], version=2)
         stelle = "Generico" if stars == 0 else f"{stars}⭐️"
         caption = (
-            f"_🤙 Feedback Accettato!_\n\n"
-            f"*Da:* @{mittente} [`{pending['user_id']}`]\n"
-            f"*Per:* @{destinatario} [`{pending['target_user_id']}`]\n"
-            f"*Stelle:* {stelle}\n"
-            f"*Messaggio:* {mex}"
+            f"_🤙 Feedback Accettato\\!_\n\n"
+            f"*Da\\:* @{mittente} [`{pending['user_id']}`]\n"
+            f"*Per\\:* @{destinatario} [`{pending['target_user_id']}`]\n"
+            f"*Stelle\\:* {stelle}\n"
+            f"*Messaggio\\:* {mex}"
         )
 
         # 3) Edit del messaggio con la conferma (togliendo la tastiera)
