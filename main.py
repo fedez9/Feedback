@@ -318,50 +318,50 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mittente = escape_markdown(pending["sender_username"], version=2)
         destinatario = escape_markdown(pending["target_username"], version=2)
         mex = escape_markdown(pending["feedback_text"], version=2)
-        caption = (f"_🆕 Feedback ricevuto\\!_\n\n*Da\\:* @{mittente} \\[`{pending['user_id']}`\\]\n"
-                   f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n*Messaggio\\:* {mex}")
-        testo = caption + "\n\n*💪 Feedback accettato\\.*"
-        await query.edit_message_caption(
-            caption=testo,
-            parse_mode=ParseMode.MARKDOWN_V2
+        caption = (
+            f"_🆕 Feedback ricevuto!_\n\n"
+            f"*Da:* @{mittente} [`{pending['user_id']}`]\n"
+            f"*Per:* @{destinatario} [`{pending['target_user_id']}`]\n"
+            f"*Messaggio:* {mex}\n\n"
+            f"*Quante stelle vuoi assegnare?*"
         )
 
-        # 4) Chiedi le stelle **nella stessa chat** (GRUPPO_FEEDBACK_DA_ACCETTARE)
+        # 3) Costruisco la tastiera a stelle
         star_buttons = [
             InlineKeyboardButton("⭐️",      callback_data=f"star_{request_id}_1"),
             InlineKeyboardButton("⭐️⭐️",     callback_data=f"star_{request_id}_2"),
             InlineKeyboardButton("⭐️⭐️⭐️",   callback_data=f"star_{request_id}_3"),
             InlineKeyboardButton("⭐️⭐️⭐️⭐️", callback_data=f"star_{request_id}_4"),
             InlineKeyboardButton("⭐️⭐️⭐️⭐️⭐️", callback_data=f"star_{request_id}_5"),
-            InlineKeyboardButton("Generico", callback_data=f"star_{request_id}_0")
+            InlineKeyboardButton("Generico",   callback_data=f"star_{request_id}_0"),
         ]
         keyboard = [
             star_buttons[:3],
             star_buttons[3:]
         ]
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,  # stessa chat di revisione
-            text=(
-                "🌟 *Feedback accettato\\!*\n\n"
-                "_Quante stelle vuoi assegnare\\?_"
-            ),
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        # 4) Faccio l’edit del messaggio già inviato
+        await context.bot.edit_message_caption(
+            chat_id=GRUPPO_FEEDBACK_DA_ACCETTARE,
+            message_id=pending["feedback_group_message_id"],
+            caption=caption,
             parse_mode=ParseMode.MARKDOWN_V2,
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            reply_markup=reply_markup
         )
 
-        # 5) Segnala in pending che stiamo aspettando il rating
+        # 5) Segnalo al pending che aspetto la valutazione
         pending_feedback[request_id]["awaiting_rating"] = True
         return
-    
-    elif query.data.startswith("star_"):
-        # data = "star_<request_id>_<n>"
-        _, request_id, stars_str = query.data.split("_")
-        stars = int(stars_str)
 
+
+    elif query.data.startswith("star_"):
+        _, request_id, stars_str = query.data.split("_", 2)
+        stars = int(stars_str)
         pending = pending_feedback.get(request_id)
         if not pending or not pending.get("awaiting_rating"):
-            await query.answer("Nessuna valutazione in corso.", show_alert=True)
-            return
+            return await query.answer("Nessuna valutazione in corso.", show_alert=True)
+
 
         origin_chat = pending["origin_chat_id"]
         sender_id   = pending["user_id"]
@@ -392,26 +392,25 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mittente = escape_markdown(pending['sender_username'], version=2)
         destinatario = escape_markdown(pending['target_username'], version=2)
         mex = escape_markdown(pending['feedback_text'], version=2)
-        stelle = "Generico" if stars == 0 else str(stars)
-            
+        stelle = "Generico" if stars == 0 else f"{stars}⭐️"
         caption = (
-            f"_🤙 Feedback Accettato\\!_\n\n"
-            f"*Da\\:* @{mittente} \\[`{sender_id}`\\]\n"
-            f"*Per\\:* @{destinatario} \\[`{target_id}`\\]\n"
-            f"*Stelle\\:* {stelle}🌟\n"
-            f"*Messaggio\\:* {mex}"
-        )
-        await context.bot.send_photo(
-            chat_id=GRUPPO_FEEDBACK,
-            photo=pending["photo_id"],
-            caption=caption,
-            parse_mode=ParseMode.MARKDOWN_V2
-        )
-        await query.edit_message_text(
-            f"✅ Feedback accettato da @{mittente} per @{destinatario}\\.",
-            parse_mode=ParseMode.MARKDOWN_V2
+            f"_🤙 Feedback Accettato!_\n\n"
+            f"*Da:* @{mittente} [`{pending['user_id']}`]\n"
+            f"*Per:* @{destinatario} [`{pending['target_user_id']}`]\n"
+            f"*Stelle:* {stelle}\n"
+            f"*Messaggio:* {mex}"
         )
 
+        # 3) Edit del messaggio con la conferma (togliendo la tastiera)
+        await context.bot.edit_message_caption(
+            chat_id=GRUPPO_FEEDBACK_DA_ACCETTARE,
+            message_id=pending["feedback_group_message_id"],
+            caption=caption,
+            parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=None
+        )
+
+        # 4) Pulisco il pending
         del pending_feedback[request_id]
         return
 
