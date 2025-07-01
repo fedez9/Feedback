@@ -398,6 +398,13 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"*Messaggio\\:* {mex}"
         )
 
+        await context.bot.send_photo(
+            chat_id=GRUPPO_FEEDBACK,
+            photo=pending["photo_id"],
+            caption=caption,
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+
         await query.edit_message_caption(
             caption=caption,
             parse_mode=ParseMode.MARKDOWN_V2,
