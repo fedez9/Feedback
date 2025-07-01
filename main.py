@@ -341,15 +341,12 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        # 4) Faccio l’edit del messaggio già inviato
-        await context.bot.edit_message_caption(
-            chat_id=GRUPPO_FEEDBACK_DA_ACCETTARE,
-            message_id=pending["feedback_group_message_id"],
+        await query.edit_message_caption(
             caption=caption,
             parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=reply_markup
         )
-
+        
         # 5) Segnalo al pending che aspetto la valutazione
         pending_feedback[request_id]["awaiting_rating"] = True
         return
@@ -401,10 +398,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"*Messaggio\\:* {mex}"
         )
 
-        # 3) Edit del messaggio con la conferma (togliendo la tastiera)
-        await context.bot.edit_message_caption(
-            chat_id=GRUPPO_FEEDBACK_DA_ACCETTARE,
-            message_id=pending["feedback_group_message_id"],
+        await query.edit_message_caption(
             caption=caption,
             parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=None
