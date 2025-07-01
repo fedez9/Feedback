@@ -307,7 +307,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             nome_verificato = escape_markdown(target["username"], version=2)
             await context.bot.send_message(
                 chat_id=int(os.getenv("GRUPPO_STAFF")),
-                text=f"_🎉 L'utente @{nome_verificato} ha raggiunto i 25 feedback ed è stato verificato\\!_",
+                text=f"_➕ L'utente @{nome} ha raggiunto i 25 feedback\\._\n\n*🔝 È stato verificato\\.*",
                 parse_mode=ParseMode.MARKDOWN_V2
             )
 
