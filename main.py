@@ -131,9 +131,10 @@ async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     [InlineKeyboardButton("✅ Conferma", callback_data=f"confirm_{message.message_id}"),
                      InlineKeyboardButton("❌ Annulla", callback_data=f"cancel_{message.message_id}")]
                 ]
+                ricevente = escape_markdown(target_user_info['username'], version=2)
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await message.reply_text(
-                    f"_📥 Confermi il feedback per @{target_user_info['username']}\\?_",
+                    f"_📥 Confermi il feedback per @{ricevente}\\?_",
                     reply_markup=reply_markup,
                     parse_mode=ParseMode.MARKDOWN_V2
                 )
