@@ -64,8 +64,6 @@ async def get_user_from_dict_or_telegram(chat_id: int, username: str, context: C
         if user_data.get("username", "").lower() == username.lower():
             return user_data
 
-    # Logica di fallback per aggiungere un utente se non esiste, non più necessaria
-    # dato che i comandi ora gestiscono l'utente non trovato.
     return None
 
 
@@ -93,8 +91,8 @@ async def traccia_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "feedback_ricevuti": 0,
             "verified": False,
             "limited": False,
-            "cards_donate":   [0] * 6,
-            "cards_ricevute": [0] * 6,
+            "cards_donate":   [0] * 7,
+            "cards_ricevute": [0] * 7,
         }
         logger.info(f"Nuovo utente aggiunto: {user.username} (ID: {user.id}) nel gruppo {chat.id}")
         save_group_users(group_users)
@@ -184,22 +182,22 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         username = user_data.get("username", "N/A")
-        # FIX: Legge le liste e gestisce dati vecchi/incompleti per retrocompatibilità
-        cards = user_data.get("cards_donate", [0] * 6)
-        received = user_data.get("cards_ricevute", [0] * 6)
+        cards = user_data.get("cards_donate", [0] * 7)
+        received = user_data.get("cards_ricevute", [0] * 7)
 
-        if not isinstance(cards, list): cards = [0] * 6
-        if not isinstance(received, list): received = [0] * 6
-        while len(cards) < 6: cards.append(0)
-        while len(received) < 6: received.append(0)
+        # Assicurati che le liste siano sempre di lunghezza 6
+        cards = cards if isinstance(cards, list) else [0] * 7
+        received = received if isinstance(received, list) else [0] * 7
+        cards += [0] * (7 - len(cards))
+        received += [0] * (7 - len(received))
 
         lines = [f"_⏫ Carte donate da @{escape_markdown(username, 2)}:_"]
-        for star in range(6):
+        for star in range(7):
             label = "Generico" if star == 0 else f"{star}🌟"
             lines.append(f"{label}: {cards[star]}")
 
         lines.append(f"\n_⏬ Carte ricevute da @{escape_markdown(username, 2)}:_")
-        for star in range(6):
+        for star in range(7):
             label = "Generico" if star == 0 else f"{star}🌟"
             lines.append(f"{label}: {received[star]}")
 
@@ -224,7 +222,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         nome = escape_markdown(target_user.get('username', 'N/A'), version=2)
         verified_status = "✅" if target_user.get("verified") else "❌"
-        limited_status = "🔕" if target_user.get("limited") else "🔔"
+        limited_status = "⛔️" if target_user.get("limited") else "🆓"
         base_msg = (
             f"_ℹ️ Informazioni relative all'utente_\n\n"
             f"*🔢 ID\\:* `{target_user['id']}`\n"
@@ -245,21 +243,29 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         action, request_id = query.data.split("_", 1)
     except ValueError:
-        await query.edit_message_text("Errore: callback non valida.")
-        return
+        if query.data.startswith("star_"):
+            try:
+                _, request_id, stars = query.data.split("_", 2)
+                action = "star"
+            except ValueError:
+                await query.edit_message_text("Invalid callback data format.")
+                return
+        else:
+            await query.edit_message_text("Invalid callback data.")
+            return
 
     pending_ref = db.reference(f'pending_feedback/{request_id}')
     pending = pending_ref.get()
 
     if not pending:
-        text_to_show = "*Feedback non più valido, già processato o scaduto\\.*"
         try:
-            await query.edit_message_caption(caption=text_to_show, parse_mode=ParseMode.MARKDOWN_V2)
-        except Exception:
-            try:
-                await query.edit_message_text(text=text_to_show, parse_mode=ParseMode.MARKDOWN_V2)
-            except Exception as e:
-                logger.error(f"Impossibile modificare messaggio per notifica feedback scaduto: {e}")
+            await query.edit_message_caption(
+                caption="*🚫 Feedback già elaborato o scaduto*",
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
+        except Exception as e:
+            logger.error(f"Failed to update message: {e}")
+            await query.edit_message_text("Errore durante l'aggiornamento del messaggio.")
         return
 
     if action == "confirm":
@@ -272,11 +278,17 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 InlineKeyboardButton("👍 Accetta", callback_data=f"accept_{request_id}"),
                 InlineKeyboardButton("👎 Rifiuta", callback_data=f"reject_{request_id}")
             ]]
+            
             mittente = escape_markdown(pending['sender_username'], version=2)
             destinatario = escape_markdown(pending['target_username'], version=2)
             mex = escape_markdown(pending['feedback_text'], version=2)
-            caption = (f"_🆕 Feedback ricevuto\\!_\n\n*Da\\:* @{mittente} \\[`{pending['user_id']}`\\]\n"
-                       f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n*Messaggio\\:* {mex}")
+            
+            caption = (
+                f"_🆕 Feedback ricevuto\\!_\n\n"
+                f"*Da\\:* @{mittente} \\[`{pending['user_id']}`\\]\n"
+                f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n"
+                f"*Messaggio\\:* {mex}"
+            )
 
             sent_message = await context.bot.send_photo(
                 chat_id=GRUPPO_FEEDBACK_DA_ACCETTARE,
@@ -285,8 +297,12 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode=ParseMode.MARKDOWN_V2
             )
-            pending_ref.update({"feedback_group_message_id": sent_message.message_id})
+            
+            pending_ref.update({
+                "feedback_group_message_id": sent_message.message_id
+            })
             await query.edit_message_text("_🏹 Feedback inviato\\!_", parse_mode=ParseMode.MARKDOWN_V2)
+            
         except Exception as e:
             await query.edit_message_text(f"Errore nell'invio del feedback: {e}")
             logger.error(f"Errore nell'invio del feedback per la revisione: {e}")
@@ -295,6 +311,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if pending["user_id"] != user.id:
             await query.answer("Non puoi annullare questo feedback.", show_alert=True)
             return
+        
         pending_ref.delete()
         await query.edit_message_text("_🪃 Feedback annullato\\!_", parse_mode=ParseMode.MARKDOWN_V2)
 
@@ -309,105 +326,143 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("Errore: utente non trovato nel database.")
             return
 
-        sender["feedback_fatti"] += 1
-        target["feedback_ricevuti"] += 1
+        # Update sender and target stats
+        sender["feedback_fatti"] = sender.get("feedback_fatti", 0) + 1
+        target["feedback_ricevuti"] = target.get("feedback_ricevuti", 0) + 1
 
+        # Handle verification
         if target["feedback_ricevuti"] >= 25 and not target.get("verified"):
             target["verified"] = True
             nome_verificato = escape_markdown(target["username"], version=2)
             await context.bot.send_message(
                 chat_id=int(os.getenv("GRUPPO_STAFF")),
-                text=f"_➕ L'utente @{nome_verificato} ha raggiunto i 25 feedback ed è stato verificato\\!_",
+                text=f"_➕ L'utente @{nome_verificato} ha raggiunto i 25 feedback\\._\n\n*🔝 È stato verificato\\!*",
                 parse_mode=ParseMode.MARKDOWN_V2
             )
         
         save_group_users(group_users)
-        update_feedback_stats(stats, pending["user_id"], pending["sender_username"], pending["target_user_id"], pending["target_username"])
+        update_feedback_stats(stats, pending["user_id"], pending["sender_username"], 
+                            pending["target_user_id"], pending["target_username"])
         save_stats(stats)
 
+        # Show star rating options to admin
         mittente = escape_markdown(pending["sender_username"], version=2)
         destinatario = escape_markdown(pending["target_username"], version=2)
         mex = escape_markdown(pending["feedback_text"], version=2)
-        caption = (f"_🆕 Feedback ricevuto\\!_\n\n*Da\\:* @{mittente} \\[`{pending['user_id']}`\\]\n"
-                   f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n*Messaggio\\:* {mex}\n\n"
-                   f"*Quante stelle vuoi assegnare\\?*")
+        
+        caption = (
+            f"_🆕 Feedback ricevuto\\!_\n\n"
+            f"*Da\\:* @{mittente} \\[`{pending['user_id']}`\\]\n"
+            f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n"
+            f"*Messaggio\\:* {mex}\n\n"
+            f"*Quante stelle vuoi assegnare\\?*"
+        )
+        
         star_buttons = [
-            InlineKeyboardButton("⭐️", callback_data=f"star_{request_id}_1"),
-            InlineKeyboardButton("⭐️⭐️", callback_data=f"star_{request_id}_2"),
-            InlineKeyboardButton("⭐️⭐️⭐️", callback_data=f"star_{request_id}_3"),
-            InlineKeyboardButton("⭐️⭐️⭐️⭐️", callback_data=f"star_{request_id}_4"),
-            InlineKeyboardButton("⭐️⭐️⭐️⭐️⭐️", callback_data=f"star_{request_id}_5"),
+            InlineKeyboardButton("1 ⭐️", callback_data=f"star_{request_id}_1"),
+            InlineKeyboardButton("2 ⭐️", callback_data=f"star_{request_id}_2"),
+            InlineKeyboardButton("3 ⭐️", callback_data=f"star_{request_id}_3"),
+            InlineKeyboardButton("4 ⭐️", callback_data=f"star_{request_id}_4"),
+            InlineKeyboardButton("5 ⭐️", callback_data=f"star_{request_id}_5"),
+            InlineKeyboardButton("6 ⭐️", callback_data=f"star_{request_id}_5"),
             InlineKeyboardButton("Generico", callback_data=f"star_{request_id}_0"),
         ]
+        
         await query.edit_message_caption(
             caption=caption,
             parse_mode=ParseMode.MARKDOWN_V2,
-            reply_markup=InlineKeyboardMarkup([star_buttons[:3], star_buttons[3:]])
+            reply_markup=InlineKeyboardMarkup([star_buttons[:3], star_buttons[3:6], star_buttons[6]])
         )
+        
         pending_ref.update({"awaiting_rating": True})
 
     elif action == "reject":
         mittente = escape_markdown(pending['sender_username'], version=2)
         destinatario = escape_markdown(pending['target_username'], version=2)
         mex = escape_markdown(pending['feedback_text'], version=2)
-        caption = (f"_🆕 Feedback ricevuto\\!_\n\n*Da\\:* @{mittente} \\[`{pending['user_id']}`\\]\n"
-                   f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n*Messaggio\\:* {mex}\n\n"
-                   f"*🤌 Feedback rifiutato\\.*")
+        
+        caption = (
+            f"_🆕 Feedback ricevuto\\!_\n\n"
+            f"*Da\\:* @{mittente} \\[`{pending['user_id']}`\\]\n"
+            f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n"
+            f"*Messaggio\\:* {mex}\n\n"
+            f"*🤌 Feedback rifiutato\\.*"
+        )
+        
         await query.edit_message_caption(caption=caption, parse_mode=ParseMode.MARKDOWN_V2)
         pending_ref.delete()
 
-    elif query.data.startswith("star_"):
+    elif action == "star":
+        # Star rating selection logic
         if not pending.get("awaiting_rating"):
-            await query.answer("Valutazione già effettuata o non richiesta.", show_alert=True)
+            await query.answer("Questo feedback è già stato valutato.", show_alert=True)
             return
 
         try:
-            _, _, stars_str = query.data.split("_", 2)
-            stars = int(stars_str)
+            stars = int(query.data.split("_")[2])
         except (ValueError, IndexError):
             await query.edit_message_text("Errore: callback delle stelle non valida.")
             return
 
+        # Update user cards count
         group_users = context.bot_data['group_users']
         origin_chat = pending["origin_chat_id"]
         sender = group_users[origin_chat].get(pending["user_id"])
         target = group_users[origin_chat].get(pending["target_user_id"])
 
         if not sender or not target:
-            await query.edit_message_caption(caption="*Errore: utente non trovato nel database\\.*", parse_mode=ParseMode.MARKDOWN_V2)
+            await query.edit_message_caption(
+                caption="*Errore: utente non trovato nel database.*",
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
             return
 
-        # FIX: Assicura la presenza e il tipo corretto (lista) per le carte
+        # Initialize cards arrays if they don't exist
         if "cards_ricevute" not in sender or not isinstance(sender["cards_ricevute"], list):
-            sender["cards_ricevute"] = [0] * 6
+            sender["cards_ricevute"] = [0] * 7
         if "cards_donate" not in target or not isinstance(target["cards_donate"], list):
-            target["cards_donate"] = [0] * 6
+            target["cards_donate"] = [0] * 7
             
+        # Update card counts
         sender["cards_ricevute"][stars] += 1
         target["cards_donate"][stars] += 1
         save_group_users(group_users)
 
-        stelle_text = "Generico" if stars == 0 else f"{'⭐'*stars}"
+        # Prepare final feedback message
+        stelle_text = "Generico" if stars == 0 else f"{'⭐' * stars}"
         mittente = escape_markdown(pending['sender_username'], version=2)
         destinatario = escape_markdown(pending['target_username'], version=2)
         mex = escape_markdown(pending['feedback_text'], version=2)
-        final_caption = (f"_🤙 Feedback Accettato\\!_\n\n"
-                         f"*Da\\:* @{mittente}\n"
-                         f"*Per\\:* @{destinatario}\n"
-                         f"*Stelle\\:* {stelle_text}\n"
-                         f"*Messaggio\\:* {mex}")
         
-        await context.bot.send_photo(
-            chat_id=GRUPPO_FEEDBACK,
-            photo=pending["photo_id"],
-            caption=final_caption,
-            parse_mode=ParseMode.MARKDOWN_V2
+        final_caption = (
+            f"_🆕 Feedback ricevuto\\!_\n\n"
+            f"*Da\\:* @{mittente} \\[`{pending['user_id']}`\\]\n"
+            f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n"
+            f"*Messaggio\\:* {mex}\n\n"
+            f"*🤙 Feedback accettato\\.*"
         )
 
-        await query.edit_message_caption(caption=final_caption, parse_mode=ParseMode.MARKDOWN_V2)
-        
-        # Sposta la cancellazione del feedback pendente qui
-        pending_ref.delete()
+        # Send to feedback group
+        try:
+            await context.bot.send_photo(
+                chat_id=GRUPPO_FEEDBACK,
+                photo=pending["photo_id"],
+                caption=final_caption,
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
+            
+            # Update the original message
+            await query.edit_message_caption(
+                caption=final_caption,
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
+            
+            # Only now delete the pending feedback
+            pending_ref.delete()
+            
+        except Exception as e:
+            logger.error(f"Error sending feedback to group: {e}")
+            await query.answer("Errore nell'invio del feedback.", show_alert=True)
 
 COMMAND_MAP = {
     "inf": info_utente,
