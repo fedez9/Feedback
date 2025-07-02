@@ -283,10 +283,10 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         destinatario = escape_markdown(pending['target_username'], version=2)
         mex = escape_markdown(pending['feedback_text'], version=2)
         caption = (
-            f"_🆕 Feedback da revisionare_\n\n"
-            f"*Da:* @{mittente} [`{pending['user_id']}`]\n"
-            f"*Per:* @{destinatario} [`{pending['target_user_id']}`]\n"
-            f"*Messaggio:* {mex}"
+            f"_🆕 Feedback ricevuto\\!_\n\n"
+            f"*Da\\:* @{mittente} \\[`{pending['user_id']}`\\]\n"
+            f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n"
+            f"*Messaggio\\:* {mex}"
         )
 
         sent = await context.bot.send_photo(
@@ -306,7 +306,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("Non puoi annullare questo feedback.", show_alert=True)
             return
         pending_ref.delete()
-        await query.edit_message_text("_🪃 Feedback annullato!_", parse_mode=ParseMode.MARKDOWN_V2)
+        await query.edit_message_text("_🪃 Feedback annullato\\!_", parse_mode=ParseMode.MARKDOWN_V2)
         return
 
     # --- Ramo reject: come prima, ma non elimina ancora pending fino al ramo star? Possiamo cancellare subito ---
@@ -315,11 +315,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         destinatario = escape_markdown(pending['target_username'], version=2)
         mex = escape_markdown(pending['feedback_text'], version=2)
         caption = (
-            f"_🆕 Feedback rifiutato_\n\n"
-            f"*Da:* @{mittente} [`{pending['user_id']}`]\n"
-            f"*Per:* @{destinatario} [`{pending['target_user_id']}`]\n"
-            f"*Messaggio:* {mex}\n\n"
-            f"*🤌 Feedback rifiutato.*"
+            f"_🆕 Feedback ricevuto\\!_\n\n"
+            f"*Da\\:* @{mittente} \\[`{pending['user_id']}`\\]\n"
+            f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n"
+            f"*Messaggio\\:* {mex}\n\n"
+            f"*🤌 Feedback rifiutato\\.*"
         )
         await query.edit_message_caption(caption=caption, parse_mode=ParseMode.MARKDOWN_V2)
         pending_ref.delete()
@@ -347,7 +347,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             nome_verificato = escape_markdown(target["username"], version=2)
             await context.bot.send_message(
                 chat_id=int(os.getenv("GRUPPO_STAFF")),
-                text=f"_➕ L'utente @{nome_verificato} ha raggiunto i 25 feedback._",
+                text=f"_➕ L'utente @{nome_verificato} ha raggiunto i 25 feedback\\._\n\n*🔝 È stato verificato\\!*",
                 parse_mode=ParseMode.MARKDOWN_V2
             )
 
@@ -361,11 +361,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         destinatario = escape_markdown(pending["target_username"], version=2)
         mex = escape_markdown(pending["feedback_text"], version=2)
         caption = (
-            f"_🆕 Feedback ricevuto!_\n\n"
-            f"*Da:* @{mittente} [`{pending['user_id']}`]\n"
-            f"*Per:* @{destinatario} [`{pending['target_user_id']}`]\n"
-            f"*Messaggio:* {mex}\n\n"
-            f"*Quante stelle vuoi assegnare?*"
+            f"_🆕 Feedback ricevuto\\!_\n\n"
+            f"*Da\\:* @{mittente} \\[`{pending['user_id']}`\\]\n"
+            f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n"
+            f"*Messaggio\\:* {mex}\n\n"
+            f"*Quante stelle vuoi assegnare\\?*"
         )
         star_buttons = [
             InlineKeyboardButton(f"{i} ⭐️", callback_data=f"star_{request_id}_{i}") for i in range(1,7)
@@ -409,11 +409,12 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         destinatario = escape_markdown(pending['target_username'], version=2)
         mex = escape_markdown(pending['feedback_text'], version=2)
         final_caption = (
-            f"_🆕 Feedback accettato!_\n\n"
-            f"*Da:* @{mittente} [`{pending['user_id']}`]\n"
-            f"*Per:* @{destinatario} [`{pending['target_user_id']}`]\n"
-            f"*Messaggio:* {mex}\n\n"
-            f"*Stelle:* {stelle_text}"
+            f"_🆕 Feedback ricevuto\\!_\n\n"
+            f"*Da\\:* @{mittente} \\[`{pending['user_id']}`\\]\n"
+            f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n"
+            f"*Messaggio\\:* {mex}\n\n"
+            f"*Stelle\\:* {stelle_text}"
+            f"*🤙  Feedback accettato\\.*"
         )
 
         # Invio definitivo al gruppo feedback
