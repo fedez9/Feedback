@@ -169,10 +169,6 @@ async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Gestisce tutte le interazioni con i bottoni inline.
-    La logica per i feedback in sospeso è basata su Firebase per garantirne la persistenza.
-    """
     query = update.callback_query
     await query.answer()  # Notifica a Telegram che la callback è stata ricevuta
     user = update.effective_user
@@ -361,7 +357,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pending_ref.delete()  # Rimuovi da Firebase
 
     # Assegnazione stelle da parte dello staff
-    elif action == "star":
+    elif query.data.startswith("star_"):
         if not pending.get("awaiting_rating"):
             await query.answer("Valutazione già effettuata o non richiesta.", show_alert=True)
             return
@@ -383,8 +379,8 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         # Aggiorna il conteggio delle carte
-        sender.setdefault("cards_ricevute", {s: 0 for s in range(6)})[str(stars)] += 1
-        target.setdefault("cards_donate", {s: 0 for s in range(6)})[str(stars)] += 1
+        sender.setdefault("cards_ricevute", [0]*6)[stars] += 1
+        target.setdefault("cards_donate",    [0]*6)[stars] += 1
         save_group_users(group_users)
 
         # Prepara e invia il messaggio finale nel gruppo pubblico
@@ -405,12 +401,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.MARKDOWN_V2
         )
 
-        # Modifica il messaggio nel gruppo di revisione per mostrare lo stato finale
-        final_review_caption = (f"_✅ Feedback Accettato_\n\n"
-                                f"*Da\\:* @{mittente}\n"
-                                f"*Per\\:* @{destinatario}\n"
-                                f"*Stelle\\:* {stelle_text}")
-        await query.edit_message_caption(caption=final_review_caption, parse_mode=ParseMode.MARKDOWN_V2)
+        await query.edit_message_caption(caption=final_caption, parse_mode=ParseMode.MARKDOWN_V2)
         
         # Il ciclo di vita del feedback è completo, rimuovilo da Firebase
         pending_ref.delete()
