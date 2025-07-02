@@ -252,7 +252,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pending = pending_ref.get()
 
     if not pending:
-        # FIX: Usa edit_message_caption per evitare l'errore su messaggi con foto.
         text_to_show = "*Feedback non più valido, già processato o scaduto\\.*"
         try:
             await query.edit_message_caption(caption=text_to_show, parse_mode=ParseMode.MARKDOWN_V2)
@@ -407,6 +406,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await query.edit_message_caption(caption=final_caption, parse_mode=ParseMode.MARKDOWN_V2)
         
+        # Sposta la cancellazione del feedback pendente qui
         pending_ref.delete()
 
 COMMAND_MAP = {
