@@ -364,14 +364,14 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("3 ⭐️", callback_data=f"star_{request_id}_3"),
             InlineKeyboardButton("4 ⭐️", callback_data=f"star_{request_id}_4"),
             InlineKeyboardButton("5 ⭐️", callback_data=f"star_{request_id}_5"),
-            InlineKeyboardButton("6 ⭐️", callback_data=f"star_{request_id}_5"),
+            InlineKeyboardButton("6 ⭐️", callback_data=f"star_{request_id}_6"),
             InlineKeyboardButton("Generico", callback_data=f"star_{request_id}_0"),
         ]
         
         await query.edit_message_caption(
             caption=caption,
             parse_mode=ParseMode.MARKDOWN_V2,
-            reply_markup=InlineKeyboardMarkup([star_buttons[:3], star_buttons[3:6], star_buttons[6]])
+            reply_markup=InlineKeyboardMarkup([star_buttons[:3], star_buttons[3:6], [star_buttons[6]]])
         )
         
         pending_ref.update({"awaiting_rating": True})
