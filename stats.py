@@ -59,52 +59,74 @@ def ensure_user_stats(stats: Dict[int, dict], user_id: int, username: str) -> di
     return user_stats
 
 def update_feedback_stats(stats: Dict[int, dict], sender_id: int, sender_username: str, target_id: int, target_username: str) -> None:
+    """
+    Aggiorna le statistiche di feedback:
+    - Invia (feedback_fatti) da sender_id a target_id.
+    - Riceve (feedback_ricevuti) per target_id da sender_id.
+    - Mantiene lo storico giornaliero in 'history'.
+    - Ricalcola la proporzione di feedback ricevuti per ciascun utente.
+    """
     today = datetime.date.today().isoformat()
-    now = datetime.datetime.now().isoformat()
+    now   = datetime.datetime.now().isoformat()
 
-    sender_stats = ensure_user_stats(stats, sender_id, sender_username)
+    # 1) Inizializza sender e target
+    sender_stats = ensure_user_stats(stats, sender_id, sender_username)  # :contentReference[oaicite:0]{index=0}
     target_stats = ensure_user_stats(stats, target_id, target_username)
 
-    if sender_stats["feedback_fatti"].get("daily_date") != today:
-        if sender_stats.get("history") is None:
-            sender_stats["history"] = {}
-        if sender_stats["feedback_fatti"]["daily_date"]:
-            sender_stats["history"][sender_stats["feedback_fatti"]["daily_date"]] = {
-                "feedback_fatti": sender_stats["feedback_fatti"]["daily_count"],
+    # 2) Reset giornaliero per chi invia
+    if sender_stats["feedback_fatti"]["daily_date"] != today:
+        # Salva storico del giorno precedente
+        prev_date = sender_stats["feedback_fatti"]["daily_date"]
+        if prev_date:
+            sender_stats.setdefault("history", {})[prev_date] = {
+                "feedback_fatti":    sender_stats["feedback_fatti"]["daily_count"],
                 "feedback_ricevuti": sender_stats["feedback_ricevuti"]["daily_count"]
             }
         sender_stats["feedback_fatti"]["daily_count"] = 0
-        sender_stats["feedback_fatti"]["daily_date"] = today
-    sender_stats["feedback_fatti"]["count"] += 1
+        sender_stats["feedback_fatti"]["daily_date"]  = today
+
+    # Incrementa contatori per chi invia
+    sender_stats["feedback_fatti"]["count"]       += 1
     sender_stats["feedback_fatti"]["daily_count"] += 1
     sender_stats["feedback_fatti"]["last"] = {
-        "target_id": target_id,
+        "target_id":       target_id,
         "target_username": target_username,
-        "timestamp": now
+        "timestamp":       now
     }
 
-    if target_stats["feedback_ricevuti"].get("daily_date") != today:
-        if target_stats.get("history") is None:
-            target_stats["history"] = {}
-        if target_stats["feedback_ricevuti"]["daily_date"]:
-            target_stats["history"][target_stats["feedback_ricevuti"]["daily_date"]] = {
-                "feedback_fatti": target_stats["feedback_fatti"]["daily_count"],
+    # 3) Reset giornaliero per chi riceve
+    if target_stats["feedback_ricevuti"]["daily_date"] != today:
+        prev_date = target_stats["feedback_ricevuti"]["daily_date"]
+        if prev_date:
+            target_stats.setdefault("history", {})[prev_date] = {
+                "feedback_fatti":    target_stats["feedback_fatti"]["daily_count"],
                 "feedback_ricevuti": target_stats["feedback_ricevuti"]["daily_count"]
             }
         target_stats["feedback_ricevuti"]["daily_count"] = 0
-        target_stats["feedback_ricevuti"]["daily_date"] = today
-    target_stats["feedback_ricevuti"]["count"] += 1
+        target_stats["feedback_ricevuti"]["daily_date"]  = today
+
+    # Incrementa contatori per chi riceve
+    target_stats["feedback_ricevuti"]["count"]       += 1
     target_stats["feedback_ricevuti"]["daily_count"] += 1
     target_stats["feedback_ricevuti"]["last"] = {
-        "sender_id": sender_id,
+        "sender_id":       sender_id,
         "sender_username": sender_username,
-        "timestamp": now
+        "timestamp":       now
     }
 
-    total_feedback = sum(u["feedback_ricevuti"]["count"] for u in stats.values())
+    # 4) Normalizza TUTTI gli utenti per garantire la presenza di ogni chiave
+    for uid, data in list(stats.items()):
+        ensure_user_stats(stats, uid, data.get("username", ""))
+
+    total_feedback = sum(
+        u["feedback_ricevuti"].get("count", 0)
+        for u in stats.values()
+    )
     if total_feedback > 0:
         for user_data in stats.values():
-            user_data["proporzione"] = (user_data["feedback_ricevuti"]["count"] / total_feedback) * 100
+            user_data["proporzione"] = (
+                user_data["feedback_ricevuti"]["count"] / total_feedback
+            ) * 100
     else:
         for user_data in stats.values():
             user_data["proporzione"] = 0
