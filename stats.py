@@ -59,13 +59,6 @@ def ensure_user_stats(stats: Dict[int, dict], user_id: int, username: str) -> di
     return user_stats
 
 def update_feedback_stats(stats: Dict[int, dict], sender_id: int, sender_username: str, target_id: int, target_username: str) -> None:
-    """
-    Aggiorna le statistiche di feedback:
-    - Invia (feedback_fatti) da sender_id a target_id.
-    - Riceve (feedback_ricevuti) per target_id da sender_id.
-    - Mantiene lo storico giornaliero in 'history'.
-    - Ricalcola la proporzione di feedback ricevuti per ciascun utente.
-    """
     today = datetime.date.today().isoformat()
     now   = datetime.datetime.now().isoformat()
 
