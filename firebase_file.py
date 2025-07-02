@@ -127,3 +127,34 @@ def save_stats(stats: Dict[int, dict]) -> None:
         ref.set(payload)
     except Exception as e:
         logger.error(f"Errore save_stats su Firebase: {e}")
+
+def load_pending_feedback() -> Dict[str, dict]:
+    """
+    Carica i dati dei feedback in sospeso dal nodo 'pending_feedback' di Firebase.
+    """
+    try:
+        ref = db.reference('pending_feedback')
+        return ref.get() or {}
+    except Exception as e:
+        logger.error(f"Errore load_pending_feedback da Firebase: {e}")
+        return {}
+
+def save_pending_feedback(pending_feedback: Dict[str, dict]) -> None:
+    """
+    Salva i dati dei feedback in sospeso sul nodo 'pending_feedback' di Firebase.
+    """
+    try:
+        ref = db.reference('pending_feedback')
+        ref.set(pending_feedback)
+    except Exception as e:
+        logger.error(f"Errore save_pending_feedback su Firebase: {e}")
+
+def delete_pending_feedback_entry(request_id: str) -> None:
+    """
+    Elimina una specifica voce di feedback in sospeso da Firebase.
+    """
+    try:
+        ref = db.reference(f'pending_feedback/{request_id}')
+        ref.delete()
+    except Exception as e:
+        logger.error(f"Errore delete_pending_feedback_entry su Firebase: {e}")
