@@ -85,7 +85,7 @@ async def traccia_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"Nuovo gruppo aggiunto: {chat.id}")
 
     if user.id not in group_users[chat.id]:
-        # Inizializziamo le carte da 0 a 5 stelle: 0 = 'senza stelle'
+        # FIX: Unificata la struttura dati per le carte a una lista di 6 elementi (0-5 stelle)
         group_users[chat.id][user.id] = {
             "id": user.id,
             "username": user.username,
@@ -93,12 +93,11 @@ async def traccia_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "feedback_ricevuti": 0,
             "verified": False,
             "limited": False,
-            "cards_donate":   {star: 0 for star in range(0, 6)},
-            "cards_ricevute": {star: 0 for star in range(0, 6)},
+            "cards_donate":   [0] * 6,
+            "cards_ricevute": [0] * 6,
         }
         logger.info(f"Nuovo utente aggiunto: {user.username} (ID: {user.id}) nel gruppo {chat.id}")
         save_group_users(group_users)
-
 
 async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global pending_feedback
@@ -170,10 +169,10 @@ async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()  # Notifica a Telegram che la callback è stata ricevuta
+    await query.answer()
     user = update.effective_user
 
-    # Gestione del menu di informazioni utente (non cambia, ma usa il context per efficienza)
+    # Gestione del menu di informazioni utente
     if query.data.startswith("menu_"):
         group_users = context.bot_data.get('group_users', {})
         target_id = int(query.data.split("_", 1)[1])
@@ -185,22 +184,24 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         username = user_data.get("username", "N/A")
-        cards = user_data.get("cards_donate", {s: 0 for s in range(6)})
-        received = user_data.get("cards_ricevute", {s: 0 for s in range(6)})
+        # FIX: Legge le liste e gestisce dati vecchi/incompleti per retrocompatibilità
+        cards = user_data.get("cards_donate", [0] * 6)
+        received = user_data.get("cards_ricevute", [0] * 6)
 
-        # Garantisce che i dizionari non siano None
-        if cards is None: cards = {s: 0 for s in range(6)}
-        if received is None: received = {s: 0 for s in range(6)}
+        if not isinstance(cards, list): cards = [0] * 6
+        if not isinstance(received, list): received = [0] * 6
+        while len(cards) < 6: cards.append(0)
+        while len(received) < 6: received.append(0)
 
         lines = [f"_⏫ Carte donate da @{escape_markdown(username, 2)}:_"]
-        for star in range(0, 6):
+        for star in range(6):
             label = "Generico" if star == 0 else f"{star}🌟"
-            lines.append(f"{label}: {cards.get(str(star), cards.get(star, 0))}")
+            lines.append(f"{label}: {cards[star]}")
 
         lines.append(f"\n_⏬ Carte ricevute da @{escape_markdown(username, 2)}:_")
-        for star in range(0, 6):
+        for star in range(6):
             label = "Generico" if star == 0 else f"{star}🌟"
-            lines.append(f"{label}: {received.get(str(star), received.get(star, 0))}")
+            lines.append(f"{label}: {received[star]}")
 
         cards_text = "\n".join(lines)
         keyboard = [[InlineKeyboardButton("🔙 Indietro", callback_data=f"back_{target_id}")]]
@@ -247,15 +248,21 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("Errore: callback non valida.")
         return
 
-    # Carica i dati del feedback specifico da Firebase
     pending_ref = db.reference(f'pending_feedback/{request_id}')
     pending = pending_ref.get()
 
     if not pending:
-        await query.edit_message_text("Feedback non più valido, già processato o scaduto\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        # FIX: Usa edit_message_caption per evitare l'errore su messaggi con foto.
+        text_to_show = "*Feedback non più valido, già processato o scaduto\\.*"
+        try:
+            await query.edit_message_caption(caption=text_to_show, parse_mode=ParseMode.MARKDOWN_V2)
+        except Exception:
+            try:
+                await query.edit_message_text(text=text_to_show, parse_mode=ParseMode.MARKDOWN_V2)
+            except Exception as e:
+                logger.error(f"Impossibile modificare messaggio per notifica feedback scaduto: {e}")
         return
 
-    # Azione di conferma da parte dell'utente che invia
     if action == "confirm":
         if pending["user_id"] != user.id:
             await query.answer("Non puoi confermare questo feedback.", show_alert=True)
@@ -279,22 +286,19 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode=ParseMode.MARKDOWN_V2
             )
-            # Aggiorna la voce su Firebase con il nuovo ID del messaggio
             pending_ref.update({"feedback_group_message_id": sent_message.message_id})
             await query.edit_message_text("_🏹 Feedback inviato\\!_", parse_mode=ParseMode.MARKDOWN_V2)
         except Exception as e:
             await query.edit_message_text(f"Errore nell'invio del feedback: {e}")
             logger.error(f"Errore nell'invio del feedback per la revisione: {e}")
 
-    # Azione di annullamento da parte dell'utente che invia
     elif action == "cancel":
         if pending["user_id"] != user.id:
             await query.answer("Non puoi annullare questo feedback.", show_alert=True)
             return
-        pending_ref.delete()  # Rimuovi da Firebase
+        pending_ref.delete()
         await query.edit_message_text("_🪃 Feedback annullato\\!_", parse_mode=ParseMode.MARKDOWN_V2)
 
-    # Azione di accettazione da parte dello staff
     elif action == "accept":
         group_users = context.bot_data['group_users']
         stats = context.bot_data['stats']
@@ -322,7 +326,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         update_feedback_stats(stats, pending["user_id"], pending["sender_username"], pending["target_user_id"], pending["target_username"])
         save_stats(stats)
 
-        # Modifica il messaggio per la scelta delle stelle
         mittente = escape_markdown(pending["sender_username"], version=2)
         destinatario = escape_markdown(pending["target_username"], version=2)
         mex = escape_markdown(pending["feedback_text"], version=2)
@@ -342,10 +345,8 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=InlineKeyboardMarkup([star_buttons[:3], star_buttons[3:]])
         )
-        # Aggiorna lo stato su Firebase per indicare che attendiamo la valutazione
         pending_ref.update({"awaiting_rating": True})
 
-    # Azione di rifiuto da parte dello staff
     elif action == "reject":
         mittente = escape_markdown(pending['sender_username'], version=2)
         destinatario = escape_markdown(pending['target_username'], version=2)
@@ -354,9 +355,8 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                    f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n*Messaggio\\:* {mex}\n\n"
                    f"*🤌 Feedback rifiutato\\.*")
         await query.edit_message_caption(caption=caption, parse_mode=ParseMode.MARKDOWN_V2)
-        pending_ref.delete()  # Rimuovi da Firebase
+        pending_ref.delete()
 
-    # Assegnazione stelle da parte dello staff
     elif query.data.startswith("star_"):
         if not pending.get("awaiting_rating"):
             await query.answer("Valutazione già effettuata o non richiesta.", show_alert=True)
@@ -375,15 +375,19 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target = group_users[origin_chat].get(pending["target_user_id"])
 
         if not sender or not target:
-            await query.edit_message_text("Errore: utente non trovato nel database.")
+            await query.edit_message_caption(caption="*Errore: utente non trovato nel database\\.*", parse_mode=ParseMode.MARKDOWN_V2)
             return
 
-        # Aggiorna il conteggio delle carte
-        sender.setdefault("cards_ricevute", [0]*6)[stars] += 1
-        target.setdefault("cards_donate",    [0]*6)[stars] += 1
+        # FIX: Assicura la presenza e il tipo corretto (lista) per le carte
+        if "cards_ricevute" not in sender or not isinstance(sender["cards_ricevute"], list):
+            sender["cards_ricevute"] = [0] * 6
+        if "cards_donate" not in target or not isinstance(target["cards_donate"], list):
+            target["cards_donate"] = [0] * 6
+            
+        sender["cards_ricevute"][stars] += 1
+        target["cards_donate"][stars] += 1
         save_group_users(group_users)
 
-        # Prepara e invia il messaggio finale nel gruppo pubblico
         stelle_text = "Generico" if stars == 0 else f"{'⭐'*stars}"
         mittente = escape_markdown(pending['sender_username'], version=2)
         destinatario = escape_markdown(pending['target_username'], version=2)
@@ -403,9 +407,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await query.edit_message_caption(caption=final_caption, parse_mode=ParseMode.MARKDOWN_V2)
         
-        # Il ciclo di vita del feedback è completo, rimuovilo da Firebase
         pending_ref.delete()
-
 
 COMMAND_MAP = {
     "inf": info_utente,
