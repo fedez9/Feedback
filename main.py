@@ -244,8 +244,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # --- Logica persistente per i Feedback ---
-    # Tutte le altre azioni (confirm, cancel, accept, etc.) sono gestite qui.
     try:
         action, request_id = query.data.split("_", 1)
     except ValueError:
@@ -286,7 +284,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             # Aggiorna la voce su Firebase con il nuovo ID del messaggio
             pending_ref.update({"feedback_group_message_id": sent_message.message_id})
-            await query.edit_message_text("_🏹 Feedback inviato allo staff per la revisione\\!_", parse_mode=ParseMode.MARKDOWN_V2)
+            await query.edit_message_text("_🏹 Feedback inviato\\!_", parse_mode=ParseMode.MARKDOWN_V2)
         except Exception as e:
             await query.edit_message_text(f"Errore nell'invio del feedback: {e}")
             logger.error(f"Errore nell'invio del feedback per la revisione: {e}")
@@ -357,7 +355,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mex = escape_markdown(pending['feedback_text'], version=2)
         caption = (f"_🆕 Feedback ricevuto\\!_\n\n*Da\\:* @{mittente} \\[`{pending['user_id']}`\\]\n"
                    f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n*Messaggio\\:* {mex}\n\n"
-                   f"*🤌 Feedback rifiutato da {escape_markdown(user.username, version=2)}\\.*")
+                   f"*🤌 Feedback rifiutato\\.*")
         await query.edit_message_caption(caption=caption, parse_mode=ParseMode.MARKDOWN_V2)
         pending_ref.delete()  # Rimuovi da Firebase
 
@@ -407,7 +405,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # Modifica il messaggio nel gruppo di revisione per mostrare lo stato finale
-        final_review_caption = (f"_✅ Feedback Approvato da {escape_markdown(user.username, version=2)}_\n\n"
+        final_review_caption = (f"_✅ Feedback Accettato_\n\n"
                                 f"*Da\\:* @{mittente}\n"
                                 f"*Per\\:* @{destinatario}\n"
                                 f"*Stelle\\:* {stelle_text}")
