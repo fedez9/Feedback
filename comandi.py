@@ -57,7 +57,7 @@ async def info_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     nome = escape_markdown(target_user.get('username', 'N/A'), version=2)
     verified_status = "✅" if target_user.get("verified") else "❌"
-    limited_status = "🔕" if target_user.get("limited") else "🔔"
+    limited_status = "⛔️" if target_user.get("limited") else "🆓"
     msg = (
         f"_ℹ️ Informazioni relative all'utente_\n\n"
         f"*🔢 ID\\:* `{target_user['id']}`\n"
@@ -114,21 +114,25 @@ async def add_invio(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "feedback_fatti": 0,
             "verified": False,
             "limited": False,
-            "cards_donate": [0]*6,
-            "cards_ricevute": [0]*6
+            "cards_donate": [0]*7,
+            "cards_ricevute": [0]*7
         }
         users_in_chat[uid] = target_user
 
     # Aggiorna
     target_user["feedback_fatti"] = target_user.get("feedback_fatti", 0) + amount
-    target_user.setdefault("cards_ricevute", [0]*6)
+    target_user.setdefault("cards_ricevute", [0]*7)
     target_user["cards_ricevute"][stars] += amount
 
     save_group_users(group_users)
 
     nome = escape_markdown(target_user['username'], version=2)
+    aggiunt = "Aggiunta" if amount==1 else "Aggiunte"
+    cart = "carta" if amount==1 else "carte"
+    stel = "" if stars==0 else f"da {stars}🌟"
+    ricevut = "ricevuta" if amount==1 else "ricevute"
     await update.message.reply_text(
-        f"_✅ Feedback inviati aggiornati per @{nome}, ora a quota {target_user['feedback_fatti']}_",
+        f"✅ *Feedback inviati aggiornati per @{nome}, ora a quota {target_user['feedback_fatti']}*\n\n_➕ {aggiunt} {amount} {cart} {stel} {ricevut}\\._",
         parse_mode=ParseMode.MARKDOWN_V2
     )
     await check_limit_condition(update, context, target_user)
@@ -175,13 +179,13 @@ async def add_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "feedback_fatti": 0,
             "verified": False,
             "limited": False,
-            "cards_donate": [0]*6,
-            "cards_ricevute": [0]*6
+            "cards_donate": [0]*7,
+            "cards_ricevute": [0]*7
         }
         users_in_chat[uid] = target_user
 
     target_user["feedback_ricevuti"] = target_user.get("feedback_ricevuti", 0) + amount
-    target_user.setdefault("cards_donate", [0]*6)
+    target_user.setdefault("cards_donate", [0]*7)
     target_user["cards_donate"][stars] += amount
 
     # Verifica badge a 25 feedback
@@ -200,8 +204,12 @@ async def add_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_group_users(group_users)
 
     nome = escape_markdown(target_user['username'], version=2)
+    aggiunt = "Aggiunta" if amount==1 else "Aggiunte"
+    cart = "carta" if amount==1 else "carte"
+    stel = "" if stars==0 else f"da {stars}🌟"
+    donat = "donata" if amount==0 else "donate"
     await update.message.reply_text(
-        f"_✅ Feedback ricevuti aggiornati per @{nome}, ora a quota {target_user['feedback_ricevuti']}_",
+        f"✅ *Feedback ricevuti aggiornati per @{nome}, ora a quota {target_user['feedback_ricevuti']}*\n\n_➕ {aggiunt} {amount} {cart} {stel} {donat}\\._",
         parse_mode=ParseMode.MARKDOWN_V2
     )
     await check_limit_condition(update, context, target_user)
@@ -241,14 +249,18 @@ async def rem_invio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     target_user["feedback_fatti"] = max(0, target_user.get("feedback_fatti", 0) - amount)
-    target_user.setdefault("cards_ricevute", [0]*6)
+    target_user.setdefault("cards_ricevute", [0]*7)
     target_user["cards_ricevute"][stars] = max(0, target_user["cards_ricevute"][stars] - amount)
 
     save_group_users(group_users)
 
     nome = escape_markdown(target_user['username'], version=2)
+    aggiunt = "Rimossa" if amount==1 else "Rimosse"
+    cart = "carta" if amount==1 else "carte"
+    stel = "" if stars==0 else f"da {stars}🌟"
+    ricevut = "ricevuta" if amount==1 else "ricevute"
     await update.message.reply_text(
-        f"_✅ Feedback inviati aggiornati per @{nome}, ora a quota {target_user['feedback_fatti']}_",
+        f"✅ *Feedback inviati aggiornati per @{nome}, ora a quota {target_user['feedback_fatti']}*\n\n_➕ {aggiunt} {amount} {cart} {stel} {ricevut}\\._",
         parse_mode=ParseMode.MARKDOWN_V2
     )
     await check_limit_condition(update, context, target_user)
@@ -289,7 +301,7 @@ async def rem_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     current = target_user.get("feedback_ricevuti", 0)
     target_user["feedback_ricevuti"] = max(0, current - amount)
-    target_user.setdefault("cards_donate", [0]*6)
+    target_user.setdefault("cards_donate", [0]*7)
     target_user["cards_donate"][stars] = max(0, target_user["cards_donate"][stars] - amount)
 
     # Rimuovi badge se sotto soglia
@@ -304,8 +316,12 @@ async def rem_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_group_users(group_users)
 
     nome = escape_markdown(target_user['username'], version=2)
+    aggiunt = "Rimossa" if amount==1 else "Rimosse"
+    cart = "carta" if amount==1 else "carte"
+    stel = "" if stars==0 else f"da {stars}🌟"
+    donat = "donata" if amount==0 else "donate"
     await update.message.reply_text(
-        f"_✅ Feedback ricevuti aggiornati per @{nome}, ora a quota {target_user['feedback_ricevuti']}_",
+        f"✅ *Feedback ricevuti aggiornati per @{nome}, ora a quota {target_user['feedback_ricevuti']}*\n\n_➕ {aggiunt} {amount} {cart} {stel} {donat}\\._",
         parse_mode=ParseMode.MARKDOWN_V2
     )
     await check_limit_condition(update, context, target_user)
@@ -369,7 +385,7 @@ async def unverify_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_user["verified"] = False
     save_group_users(group_users)
     nome = escape_markdown(target_user['username'], version=2)
-    await update.message.reply_text(f"_✅ La verifica per @{nome} è stata rimossa\\._", parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text(f"_❎ L'utente @{nome} è stato sverificato\\!_", parse_mode=ParseMode.MARKDOWN_V2)
 
 
 @restricted
@@ -394,7 +410,7 @@ async def limit_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_user["limited"] = True
     save_group_users(group_users)
     nome = escape_markdown(target_user['username'], version=2)
-    await update.message.reply_text(f"_✅ L'utente @{nome} è stato limitato_", parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text(f"_❎ L'utente @{nome} è stato limitato_", parse_mode=ParseMode.MARKDOWN_V2)
 
 
 @restricted
@@ -419,7 +435,7 @@ async def unlimit_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_user["limited"] = False
     save_group_users(group_users)
     nome = escape_markdown(target_user['username'], version=2)
-    await update.message.reply_text(f"_✅ L'utente @{nome} non è più limitato_", parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text(f"_✅ L'utente @{nome} è stato unlimitato_", parse_mode=ParseMode.MARKDOWN_V2)
 
 
 async def check_limit_condition(update: Update, context: ContextTypes.DEFAULT_TYPE, user: dict):
@@ -452,5 +468,6 @@ async def show_commands(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "*\\.unlimita \\[ID\\|@username\\]* \\- _Rimuovi il limite\\._\n"
         "*\\.admin \\[ID\\|@username\\]* \\- _Aggiungi un admin del bot\\._\n"
         "*\\.remadmin \\[ID\\|@username\\]* \\- _Rimuovi un admin del bot\\._\n"
+        "*\\.listadmin* \\- _Mostra la lista degli admin abilitati\\._\n"
     )
     await update.message.reply_text(commands_text, parse_mode=ParseMode.MARKDOWN_V2)
