@@ -80,47 +80,57 @@ async def add_invio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     args = context.args
     if len(args) < 1:
-        await update.message.reply_text("*🆘 Comando errato!*\n\nUsa: /addinv @username|id [numero] [stelle]", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text(
+            "*🆘 Comando errato!*\n\nUsa: /addinv @username|id [numero] [stelle]",
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
         return
 
     identifier = args[0]
-    amount = 1
-    stars = 0
-    if len(args) >= 2:
-        try: amount = int(args[1])
-        except ValueError: await update.message.reply_text("Il numero deve essere un intero."); return
-    if len(args) >= 3:
-        try:
-            stars = int(args[2])
-            if not 0 <= stars <= 5: await update.message.reply_text("Le stelle devono essere tra 0 e 5."); return
-        except ValueError: await update.message.reply_text("Le stelle devono essere un intero."); return
+    amount = int(args[1]) if len(args) >= 2 and args[1].isdigit() else 1
+    stars  = int(args[2]) if len(args) >= 3 and args[2].isdigit() else 0
 
-    target_user, uid = None, None
+    # Trova o crea target_user
+    uid = None
     if identifier.lstrip("-").isdigit():
         uid = int(identifier)
         target_user = users_in_chat.get(uid)
     else:
         username = identifier.lstrip("@").lower()
-        for user in users_in_chat.values():
-            if user.get("username", "").lower() == username:
-                target_user = user; break
+        target_user = next(
+            (u for u in users_in_chat.values() if u.get("username", "").lower() == username),
+            None
+        )
 
     if not target_user:
         if not uid:
-            await update.message.reply_text("Utente non trovato. Per creare un profilo, usa l'ID numerico."); return
+            await update.message.reply_text("Utente non trovato. Usa l'ID numerico per crearlo.")
+            return
         real_username = await get_user_details(uid, context)
-        await update.message.reply_text(f"L'utente '{real_username}' (ID: {uid}) non è nel database. Verrà creato.")
-        target_user = {"id": uid, "username": real_username, "feedback_ricevuti": 0, "feedback_fatti": 0, "verified": False, "limited": False, "cards_donate": {s: 0 for s in range(6)}, "cards_ricevute": {s: 0 for s in range(6)}}
+        target_user = {
+            "id": uid,
+            "username": real_username,
+            "feedback_ricevuti": 0,
+            "feedback_fatti": 0,
+            "verified": False,
+            "limited": False,
+            "cards_donate": [0]*6,
+            "cards_ricevute": [0]*6
+        }
         users_in_chat[uid] = target_user
 
+    # Aggiorna
     target_user["feedback_fatti"] = target_user.get("feedback_fatti", 0) + amount
-    target_user.setdefault("cards_ricevute", {s: 0 for s in range(6)})[str(stars)] += amount
+    target_user.setdefault("cards_ricevute", [0]*6)
+    target_user["cards_ricevute"][stars] += amount
 
-    save_group_users(group_users)  
+    save_group_users(group_users)
 
     nome = escape_markdown(target_user['username'], version=2)
-    response = f"_✅ Feedback inviati aggiornati per @{nome}, ora a quota {target_user['feedback_fatti']}_"
-    await update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text(
+        f"_✅ Feedback inviati aggiornati per @{nome}, ora a quota {target_user['feedback_fatti']}_",
+        parse_mode=ParseMode.MARKDOWN_V2
+    )
     await check_limit_condition(update, context, target_user)
 
 
@@ -132,52 +142,68 @@ async def add_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     args = context.args
     if len(args) < 1:
-        await update.message.reply_text("*🆘 Comando errato!*\n\nUsa: /addfeed @username|id [numero] [stelle]", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text(
+            "*🆘 Comando errato!*\n\nUsa: /addfeed @username|id [numero] [stelle]",
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
         return
 
     identifier = args[0]
-    amount = 1
-    stars = 0
-    if len(args) >= 2:
-        try: amount = int(args[1])
-        except ValueError: await update.message.reply_text("Il numero deve essere un intero."); return
-    if len(args) >= 3:
-        try:
-            stars = int(args[2])
-            if not 0 <= stars <= 5: await update.message.reply_text("Le stelle devono essere tra 0 e 5."); return
-        except ValueError: await update.message.reply_text("Le stelle devono essere un intero."); return
+    amount = int(args[1]) if len(args) >= 2 and args[1].isdigit() else 1
+    stars  = int(args[2]) if len(args) >= 3 and args[2].isdigit() else 0
 
-    target_user, uid = None, None
+    uid = None
     if identifier.lstrip("-").isdigit():
         uid = int(identifier)
         target_user = users_in_chat.get(uid)
     else:
         username = identifier.lstrip("@").lower()
-        for user in users_in_chat.values():
-            if user.get("username", "").lower() == username:
-                target_user = user; break
+        target_user = next(
+            (u for u in users_in_chat.values() if u.get("username", "").lower() == username),
+            None
+        )
 
     if not target_user:
         if not uid:
-            await update.message.reply_text("Utente non trovato. Per creare un profilo, usa l'ID numerico."); return
+            await update.message.reply_text("Utente non trovato. Usa l'ID numerico per crearlo.")
+            return
         real_username = await get_user_details(uid, context)
-        await update.message.reply_text(f"L'utente '{real_username}' (ID: {uid}) non è nel database. Verrà creato.")
-        target_user = {"id": uid, "username": real_username, "feedback_ricevuti": 0, "feedback_fatti": 0, "verified": False, "limited": False, "cards_donate": {s: 0 for s in range(6)}, "cards_ricevute": {s: 0 for s in range(6)}}
+        target_user = {
+            "id": uid,
+            "username": real_username,
+            "feedback_ricevuti": 0,
+            "feedback_fatti": 0,
+            "verified": False,
+            "limited": False,
+            "cards_donate": [0]*6,
+            "cards_ricevute": [0]*6
+        }
         users_in_chat[uid] = target_user
 
     target_user["feedback_ricevuti"] = target_user.get("feedback_ricevuti", 0) + amount
-    target_user.setdefault("cards_donate", {s: 0 for s in range(6)})[str(stars)] += amount
+    target_user.setdefault("cards_donate", [0]*6)
+    target_user["cards_donate"][stars] += amount
 
+    # Verifica badge a 25 feedback
     if target_user["feedback_ricevuti"] >= 25 and not target_user.get("verified", False):
         target_user["verified"] = True
         nome_verificato = escape_markdown(target_user['username'], version=2)
-        await context.bot.send_message(chat_id=GRUPPO_STAFF, text=f"_➕ L'utente @{nome_verificato} ha raggiunto i 25 feedback\\._\n\n*🔝 È stato verificato\\.*", parse_mode=ParseMode.MARKDOWN_V2)
+        await context.bot.send_message(
+            chat_id=GRUPPO_STAFF,
+            text=(
+                f"_➕ L'utente @{nome_verificato} ha raggiunto i 25 feedback\\._\n\n"
+                "*🔝 È stato verificato\\.*"
+            ),
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
 
-    save_group_users(group_users) 
+    save_group_users(group_users)
 
     nome = escape_markdown(target_user['username'], version=2)
-    response = f"_✅ Feedback ricevuti aggiornati per @{nome}, ora a quota {target_user['feedback_ricevuti']}_"
-    await update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text(
+        f"_✅ Feedback ricevuti aggiornati per @{nome}, ora a quota {target_user['feedback_ricevuti']}_",
+        parse_mode=ParseMode.MARKDOWN_V2
+    )
     await check_limit_condition(update, context, target_user)
 
 
@@ -187,49 +213,44 @@ async def rem_invio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = int(GRUPPO_SCAMBI)
     users_in_chat = group_users.get(chat_id, {})
 
-    if not users_in_chat:
-        await update.message.reply_text("Nessun utente nel database per questo gruppo.")
-        return
-
     args = context.args
     if len(args) < 1:
-        await update.message.reply_text("*🆘 Comando errato!*\n\nUsa: /reminv @username|id [numero] [stelle]", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text(
+            "*🆘 Comando errato!*\n\nUsa: /reminv @username|id [numero] [stelle]",
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
         return
 
     identifier = args[0]
-    amount = 1
-    stars = 0
-    if len(args) >= 2:
-        try: amount = int(args[1])
-        except ValueError: await update.message.reply_text("Il numero deve essere un intero."); return
-    if len(args) >= 3:
-        try:
-            stars = int(args[2])
-            if not 0 <= stars <= 5: await update.message.reply_text("Le stelle devono essere tra 0 e 5."); return
-        except ValueError: await update.message.reply_text("Le stelle devono essere un intero."); return
-        
-    target_user, uid = None, None
+    amount = int(args[1]) if len(args) >= 2 and args[1].isdigit() else 1
+    stars  = int(args[2]) if len(args) >= 3 and args[2].isdigit() else 0
+
+    # Trova target_user
     if identifier.lstrip("-").isdigit():
         uid = int(identifier)
         target_user = users_in_chat.get(uid)
     else:
         username = identifier.lstrip("@").lower()
-        for user in users_in_chat.values():
-            if user.get("username", "").lower() == username:
-                target_user = user; break
-    
+        target_user = next(
+            (u for u in users_in_chat.values() if u.get("username", "").lower() == username),
+            None
+        )
+
     if not target_user:
         await update.message.reply_text("Utente non trovato.")
         return
 
     target_user["feedback_fatti"] = max(0, target_user.get("feedback_fatti", 0) - amount)
-    target_user.setdefault("cards_ricevute", {s: 0 for s in range(6)})[str(stars)] = max(0, target_user["cards_ricevute"].get(str(stars), 0) - amount)
+    target_user.setdefault("cards_ricevute", [0]*6)
+    target_user["cards_ricevute"][stars] = max(0, target_user["cards_ricevute"][stars] - amount)
 
-    save_group_users(group_users)  
+    save_group_users(group_users)
 
     nome = escape_markdown(target_user['username'], version=2)
-    response = f"_✅ Feedback inviati aggiornati per @{nome}, ora a quota {target_user['feedback_fatti']}_"
-    await update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text(
+        f"_✅ Feedback inviati aggiornati per @{nome}, ora a quota {target_user['feedback_fatti']}_",
+        parse_mode=ParseMode.MARKDOWN_V2
+    )
     await check_limit_condition(update, context, target_user)
 
 
@@ -239,55 +260,54 @@ async def rem_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = int(GRUPPO_SCAMBI)
     users_in_chat = group_users.get(chat_id, {})
 
-    if not users_in_chat:
-        await update.message.reply_text("Nessun utente nel database per questo gruppo.")
-        return
-
     args = context.args
     if len(args) < 1:
-        await update.message.reply_text("*🆘 Comando errato!*\n\nUsa: /remfeed @username|id [numero] [stelle]", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text(
+            "*🆘 Comando errato!*\n\nUsa: /remfeed @username|id [numero] [stelle]",
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
         return
 
     identifier = args[0]
-    amount = 1
-    stars = 0
-    if len(args) >= 2:
-        try: amount = int(args[1])
-        except ValueError: await update.message.reply_text("Il numero deve essere un intero."); return
-    if len(args) >= 3:
-        try:
-            stars = int(args[2])
-            if not 0 <= stars <= 5: await update.message.reply_text("Le stelle devono essere tra 0 e 5."); return
-        except ValueError: await update.message.reply_text("Le stelle devono essere un intero."); return
+    amount = int(args[1]) if len(args) >= 2 and args[1].isdigit() else 1
+    stars  = int(args[2]) if len(args) >= 3 and args[2].isdigit() else 0
 
-    target_user, uid = None, None
+    # Trova target_user
     if identifier.lstrip("-").isdigit():
         uid = int(identifier)
         target_user = users_in_chat.get(uid)
     else:
         username = identifier.lstrip("@").lower()
-        for user in users_in_chat.values():
-            if user.get("username", "").lower() == username:
-                target_user = user; break
-    
+        target_user = next(
+            (u for u in users_in_chat.values() if u.get("username", "").lower() == username),
+            None
+        )
+
     if not target_user:
         await update.message.reply_text("Utente non trovato.")
         return
 
-    current_feed = target_user.get("feedback_ricevuti", 0)
-    target_user["feedback_ricevuti"] = max(0, current_feed - amount)
-    target_user.setdefault("cards_donate", {s: 0 for s in range(6)})[str(stars)] = max(0, target_user["cards_donate"].get(str(stars), 0) - amount)
+    current = target_user.get("feedback_ricevuti", 0)
+    target_user["feedback_ricevuti"] = max(0, current - amount)
+    target_user.setdefault("cards_donate", [0]*6)
+    target_user["cards_donate"][stars] = max(0, target_user["cards_donate"][stars] - amount)
 
-    if current_feed >= 25 and target_user["feedback_ricevuti"] < 25:
+    # Rimuovi badge se sotto soglia
+    if current >= 25 and target_user["feedback_ricevuti"] < 25:
         target_user["verified"] = False
         nome = escape_markdown(target_user['username'], version=2)
-        await update.message.reply_text(f"_➖ L'utente @{nome} ha meno di 25 feedback\\._\n\n*🚮Non è più verificato\\.*", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text(
+            f"_➖ L'utente @{nome} ha meno di 25 feedback\\._\n\n*🚮 Non è più verificato\\.*",
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
 
-    save_group_users(group_users)  
+    save_group_users(group_users)
 
     nome = escape_markdown(target_user['username'], version=2)
-    response = f"_✅ Feedback ricevuti aggiornati per @{nome}, ora a quota {target_user['feedback_ricevuti']}_"
-    await update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text(
+        f"_✅ Feedback ricevuti aggiornati per @{nome}, ora a quota {target_user['feedback_ricevuti']}_",
+        parse_mode=ParseMode.MARKDOWN_V2
+    )
     await check_limit_condition(update, context, target_user)
 
 
