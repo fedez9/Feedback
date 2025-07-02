@@ -31,24 +31,32 @@ def format_data_italiano(dt):
 
 
 def ensure_user_stats(stats: Dict[int, dict], user_id: int, username: str) -> dict:
-    if user_id not in stats:
-        stats[user_id] = {
-            "feedback_fatti": {
-                "count": 0,
-                "daily_count": 0,
-                "daily_date": None,
-                "last": None
-            },
-            "feedback_ricevuti": {
-                "count": 0,
-                "daily_count": 0,
-                "daily_date": None,
-                "last": None
-            },
-            "proporzione": 0,
-            "history": {}
-        }
-    return stats[user_id]
+    """
+    Ensures a user's stats object is fully initialized, including all nested structures,
+    for both new and existing users.
+    """
+    user_stats = stats.setdefault(user_id, {})
+
+    # Ensure 'feedback_fatti' and its sub-keys exist
+    fatti_stats = user_stats.setdefault("feedback_fatti", {})
+    fatti_stats.setdefault("count", 0)
+    fatti_stats.setdefault("daily_count", 0)
+    fatti_stats.setdefault("daily_date", None)
+    fatti_stats.setdefault("last", None)
+
+    # Ensure 'feedback_ricevuti' and its sub-keys exist
+    ricevuti_stats = user_stats.setdefault("feedback_ricevuti", {})
+    ricevuti_stats.setdefault("count", 0)
+    ricevuti_stats.setdefault("daily_count", 0)
+    ricevuti_stats.setdefault("daily_date", None)
+    ricevuti_stats.setdefault("last", None)
+
+    # Ensure other top-level keys exist
+    user_stats.setdefault("proporzione", 0)
+    user_stats.setdefault("history", {})
+    user_stats.setdefault("username", username)
+
+    return user_stats
 
 def update_feedback_stats(stats: Dict[int, dict], sender_id: int, sender_username: str, target_id: int, target_username: str) -> None:
     today = datetime.date.today().isoformat()
