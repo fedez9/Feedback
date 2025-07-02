@@ -152,7 +152,7 @@ async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     logger.info(f"Feedback pendente salvato su Firebase per il messaggio {message.message_id}")
                 except Exception as e:
                     logger.error(f"Errore nel salvare il feedback pendente su Firebase: {e}")
-                    await message.reply_text("*Si è verificato un errore, riprova.*", parse_mode=ParseMode.MARKDOWN_V2)
+                    await message.reply_text("*Si è verificato un errore, riprova\\.*", parse_mode=ParseMode.MARKDOWN_V2)
                     return
 
                 logger.info(f"Feedback pendente salvato per il messaggio {message.message_id}")
@@ -161,7 +161,7 @@ async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.warning(f"Utente target @{target_username} non trovato.")
         else:
             await message.reply_text(
-                "*⚠️ Formato feedback non valido\\.*\n\nUsa: @feedback @username + testo facoltativo",
+                "*⚠️ Formato feedback non valido\\.*\n\nUsa: @feedback @username \\+ testo facoltativo",
                 parse_mode=ParseMode.MARKDOWN_V2
             )
             logger.warning(f"Feedback con formato errato da {user.username}")
@@ -257,7 +257,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pending = pending_ref.get()
 
     if not pending:
-        await query.edit_message_text("Feedback non più valido, già processato o scaduto.", parse_mode=ParseMode.MARKDOWN_V2)
+        await query.edit_message_text("Feedback non più valido, già processato o scaduto\\.", parse_mode=ParseMode.MARKDOWN_V2)
         return
 
     # Azione di conferma da parte dell'utente che invia
