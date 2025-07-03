@@ -16,6 +16,7 @@ from telegram.helpers import escape_markdown
 from firebase_admin import db
 from firebase_file import load_stats, save_group_users, load_group_users
 from stats import update_feedback_stats, start, genera_grafico_totale, save_stats
+from telegram.error import BadRequest
 
 # Importa i comandi personalizzati
 from comandi import (
@@ -276,7 +277,17 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             caption=caption, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN_V2
         )
         pending_ref.update({"feedback_group_message_id": sent.message_id})
-        await query.edit_message_text("_🏹 Feedback inviato\\!_", parse_mode=ParseMode.MARKDOWN_V2)
+        
+        # Gestisce i clic ripetuti intercettando l'errore
+        try:
+            await query.edit_message_text("_🏹 Feedback inviato\\!_", parse_mode=ParseMode.MARKDOWN_V2)
+        except BadRequest as e:
+            if "Message is not modified" in str(e):
+                # L'utente ha premuto di nuovo il bottone. Ignoriamo l'errore.
+                pass
+            else:
+                # Se l'errore è diverso, lo registriamo per debug.
+                logger.error(f"Errore imprevisto durante l'edit del messaggio: {e}")
 
     elif action == "cancel":
         if pending["user_id"] != user.id:
@@ -346,7 +357,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         update_feedback_stats(stats, pending["user_id"], pending["sender_username"], pending["target_user_id"], pending["target_username"])
         save_stats(stats)
 
-        stelle_text = "Generico" if stars == 0 else "⭐" * stars
+        stelle_text = "Generico" if stars == 0 else f"{stars} ⭐" 
         mittente = escape_markdown(pending['sender_username'], version=2)
         destinatario = escape_markdown(pending['target_username'], version=2)
         mex = escape_markdown(pending['feedback_text'], version=2)
@@ -354,7 +365,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                          f"*Da\\:* @{mittente} \\[`{pending['user_id']}`\\]\n"
                          f"*Per\\:* @{destinatario} \\[`{pending['target_user_id']}`\\]\n"
                          f"*Messaggio\\:* {mex}\n"
-                         f"*Stelle\\:* {stelle_text}\n"
+                         f"*Stelle\\:* {stelle_text}\n\n"
                          f"*🤙 Feedback accettato\\.*")
 
         await context.bot.send_photo(
