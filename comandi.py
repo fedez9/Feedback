@@ -128,10 +128,10 @@ async def add_invio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     nome = escape_markdown(target_user['username'], version=2)
     aggiunt = "Aggiunta" if amount==1 else "Aggiunte"
     cart = "carta" if amount==1 else "carte"
-    stel = "" if stars==0 else f"da {stars}🌟"
+    stel = "" if stars==0 else f"da {stars}🌟 "
     ricevut = "ricevuta" if amount==1 else "ricevute"
     await update.message.reply_text(
-        f"✅ *Feedback inviati aggiornati per @{nome}, ora a quota {target_user['feedback_fatti']}*\n\n_➕ {aggiunt} {amount} {cart} {stel} {ricevut}\\._",
+        f"✅ *Feedback inviati aggiornati per @{nome}, ora a quota {target_user['feedback_fatti']}*\n\n_➕ {aggiunt} {amount} {cart} {stel}{ricevut}\\._",
         parse_mode=ParseMode.MARKDOWN_V2
     )
     await check_limit_condition(update, context, target_user)
@@ -205,10 +205,10 @@ async def add_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     nome = escape_markdown(target_user['username'], version=2)
     aggiunt = "Aggiunta" if amount==1 else "Aggiunte"
     cart = "carta" if amount==1 else "carte"
-    stel = "" if stars==0 else f"da {stars}🌟"
+    stel = "" if stars==0 else f"da {stars}🌟 "
     donat = "donata" if amount==0 else "donate"
     await update.message.reply_text(
-        f"✅ *Feedback ricevuti aggiornati per @{nome}, ora a quota {target_user['feedback_ricevuti']}*\n\n_➕ {aggiunt} {amount} {cart} {stel} {donat}\\._",
+        f"✅ *Feedback ricevuti aggiornati per @{nome}, ora a quota {target_user['feedback_ricevuti']}*\n\n_➕ {aggiunt} {amount} {cart} {stel}{donat}\\._",
         parse_mode=ParseMode.MARKDOWN_V2
     )
     await check_limit_condition(update, context, target_user)
@@ -256,10 +256,10 @@ async def rem_invio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     nome = escape_markdown(target_user['username'], version=2)
     aggiunt = "Rimossa" if amount==1 else "Rimosse"
     cart = "carta" if amount==1 else "carte"
-    stel = "" if stars==0 else f"da {stars}🌟"
+    stel = "" if stars==0 else f"da {stars}🌟 "
     ricevut = "ricevuta" if amount==1 else "ricevute"
     await update.message.reply_text(
-        f"✅ *Feedback inviati aggiornati per @{nome}, ora a quota {target_user['feedback_fatti']}*\n\n_➕ {aggiunt} {amount} {cart} {stel} {ricevut}\\._",
+        f"✅ *Feedback inviati aggiornati per @{nome}, ora a quota {target_user['feedback_fatti']}*\n\n_➕ {aggiunt} {amount} {cart} {stel}{ricevut}\\._",
         parse_mode=ParseMode.MARKDOWN_V2
     )
     await check_limit_condition(update, context, target_user)
@@ -317,10 +317,10 @@ async def rem_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     nome = escape_markdown(target_user['username'], version=2)
     aggiunt = "Rimossa" if amount==1 else "Rimosse"
     cart = "carta" if amount==1 else "carte"
-    stel = "" if stars==0 else f"da {stars}🌟"
+    stel = "" if stars==0 else f"da {stars}🌟 "
     donat = "donata" if amount==0 else "donate"
     await update.message.reply_text(
-        f"✅ *Feedback ricevuti aggiornati per @{nome}, ora a quota {target_user['feedback_ricevuti']}*\n\n_➕ {aggiunt} {amount} {cart} {stel} {donat}\\._",
+        f"✅ *Feedback ricevuti aggiornati per @{nome}, ora a quota {target_user['feedback_ricevuti']}*\n\n_➕ {aggiunt} {amount} {cart}{stel} {donat}\\._",
         parse_mode=ParseMode.MARKDOWN_V2
     )
     await check_limit_condition(update, context, target_user)
