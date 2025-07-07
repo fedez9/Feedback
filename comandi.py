@@ -5,9 +5,8 @@ from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from telegram.helpers import escape_markdown
 
-from firebase_file import save_group_users
+from firebase_file import save_group_users, load_group_users, load_stats
 from utils import restricted
-
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -471,3 +470,31 @@ async def show_commands(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "*\\.listadmin* \\- _Mostra la lista degli admin abilitati\\._\n"
     )
     await update.message.reply_text(commands_text, parse_mode=ParseMode.MARKDOWN_V2)
+
+@restricted
+async def reload_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Ricarica i dati group_users e stats da Firebase nella memoria del bot.
+    """
+    try:
+        logger.info("Avvio ricaricamento dati da Firebase su richiesta...")
+        
+        # Ricarica i dati degli utenti e delle statistiche da Firebase
+        group_users = load_group_users()
+        stats = load_stats()
+
+        # Aggiorna il contesto del bot (bot_data) con i dati freschi
+        context.bot_data['group_users'] = group_users
+        context.bot_data['stats'] = stats
+        
+        logger.info("Dati ricaricati e aggiornati con successo in memoria.")
+        await update.message.reply_text(
+            "✅ *Dati aggiornati con successo\\!*",
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+    except Exception as e:
+        logger.error(f"Errore durante il ricaricamento dei dati: {e}")
+        await update.message.reply_text(
+            f"*❌ Si è verificato un errore durante il ricaricamento dei dati\\:*\n`{e}`",
+            parse_mode=ParseMode.MARKDOWN_V2
+        )    
