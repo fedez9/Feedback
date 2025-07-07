@@ -28,7 +28,7 @@ from comandi import (
     verify_user,
     limit_user,
     unlimit_user,
-    check_limit_condition,
+    reload_data,
     unverify_user,
     show_commands
 )
@@ -70,9 +70,11 @@ async def get_user_from_dict_or_telegram(chat_id: int, username: str, context: C
 
 
 async def traccia_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Verifica di essere nel gruppo giusto
     if update.effective_chat is None or update.effective_chat.id != GRUPPO_SCAMBI:
         return
-    if update.effective_user is None or update.message is None:
+    # Verifica che ci sia un utente
+    if update.effective_user is None or update.effective_message is None:
         logger.warning("Messaggio ricevuto senza informazioni di chat, utente o messaggio.")
         return
 
@@ -80,12 +82,13 @@ async def traccia_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     user = update.effective_user
 
+    # Inizializza il dizionario del gruppo, se necessario
     if chat.id not in group_users:
         group_users[chat.id] = {}
         logger.info(f"Nuovo gruppo aggiunto: {chat.id}")
 
+    # Se l'utente è nuovo, aggiungilo e invia notifica
     if user.id not in group_users[chat.id]:
-        # FIX: Unificata la struttura dati per le carte a una lista di 6 elementi (0-5 stelle)
         group_users[chat.id][user.id] = {
             "id": user.id,
             "username": user.username,
@@ -98,6 +101,18 @@ async def traccia_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
         logger.info(f"Nuovo utente aggiunto: {user.username} (ID: {user.id}) nel gruppo {chat.id}")
         save_group_users(group_users)
+
+        # Invia notifica al gruppo di monitoraggio
+        await context.bot.send_message(
+            chat_id=GRUPPO_STAFF,
+            text=(
+                f"*👤 Nuovo utente aggiunto al database\\!*\n"
+                f"_🌐 Username\\:_ @{user.username or 'non disponibile'}\n"
+                f"_🔢 ID\\:_ {user.id}\n\n"
+                f"_Usa il comando .leggi per aggiornare il database\\._"
+            ),
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
 
 async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global pending_feedback
@@ -297,6 +312,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("_🪃 Feedback annullato\\!_", parse_mode=ParseMode.MARKDOWN_V2)
 
     elif action == "reject":
+        admin_ids = load_admin_ids()
+        if user.id not in admin_ids:
+            await query.answer("⛔ Non sei autorizzato ad eseguire questa azione.", show_alert=True)
+            return
+
         mittente = escape_markdown(pending['sender_username'], version=2)
         destinatario = escape_markdown(pending['target_username'], version=2)
         mex = escape_markdown(pending['feedback_text'], version=2)
@@ -308,6 +328,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pending_ref.delete()
 
     elif action == "accept":
+        admin_ids = load_admin_ids()
+        if user.id not in admin_ids:
+            await query.answer("⛔ Non sei autorizzato ad eseguire questa azione.", show_alert=True)
+            return
+
         mittente = escape_markdown(pending["sender_username"], version=2)
         destinatario = escape_markdown(pending["target_username"], version=2)
         mex = escape_markdown(pending["feedback_text"], version=2)
@@ -324,6 +349,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif action == "star":
+        admin_ids = load_admin_ids()
+        if user.id not in admin_ids:
+            await query.answer("⛔ Non sei autorizzato ad eseguire questa azione.", show_alert=True)
+            return
+
         if len(parts) < 3:
             await query.edit_message_text("Errore: callback delle stelle non valida.")
             return
@@ -336,7 +366,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target = group_users[origin_chat].get(pending["target_user_id"])
 
         if not sender or not target:
-            await query.edit_message_caption(caption="*Errore: utente non trovato nel database.*", parse_mode=ParseMode.MARKDOWN_V2)
+            await query.edit_message_caption(caption="*Errore\\: utente non trovato nel database\\.*", parse_mode=ParseMode.MARKDOWN_V2)
             return
 
         sender["feedback_fatti"] = sender.get("feedback_fatti", 0) + 1
@@ -394,7 +424,8 @@ COMMAND_MAP = {
     "verificati": list_verified_users,
     "inviati": list_feedback_sent,
     "ricevuti": list_feedback_received,
-    "comandi": show_commands
+    "comandi": show_commands,
+    "leggi": reload_data
 }
 
 
@@ -493,6 +524,7 @@ async def main() -> None:
     application.add_handler(CommandHandler("inviati", list_feedback_sent))
     application.add_handler(CommandHandler("ricevuti", list_feedback_received))
     application.add_handler(CommandHandler("comandi", show_commands))
+    application.add_handler(CommandHandler("leggi", reload_data))
 
     # Handler per i comandi che iniziano con '.'
     application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^\."), dot_command_handler))
