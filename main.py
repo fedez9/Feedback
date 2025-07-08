@@ -109,7 +109,7 @@ async def traccia_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"*👤 Nuovo utente aggiunto al database\\!*\n"
                 f"_🌐 Username\\:_ @{user.username or 'non disponibile'}\n"
                 f"_🔢 ID\\:_ {user.id}\n\n"
-                f"_Usa il comando .leggi per aggiornare il database\\._"
+                f"_Usa il comando \\.leggi per aggiornare il database\\._"
             ),
             parse_mode=ParseMode.MARKDOWN_V2
         )
