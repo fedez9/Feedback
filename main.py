@@ -14,7 +14,7 @@ from telegram.ext import (
 from telegram.constants import ParseMode
 from telegram.helpers import escape_markdown
 from firebase_admin import db
-from firebase_file import load_stats, save_group_users, load_group_users
+from firebase_file import load_stats, save_group_users, load_group_users, load_user_data
 from stats import update_feedback_stats, start, genera_grafico_totale, save_stats
 from telegram.error import BadRequest
 
@@ -70,49 +70,73 @@ async def get_user_from_dict_or_telegram(chat_id: int, username: str, context: C
 
 
 async def traccia_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Verifica di essere nel gruppo giusto
-    if update.effective_chat is None or update.effective_chat.id != GRUPPO_SCAMBI:
+    """
+    Traccia e aggiorna i dati di un utente in modo sicuro.
+    Controlla prima Firebase per prevenire la sovrascrittura di dati esistenti.
+    """
+    # Verifica che il messaggio provenga dal gruppo corretto e abbia un utente
+    if not update.effective_chat or update.effective_chat.id != GRUPPO_SCAMBI:
         return
-    # Verifica che ci sia un utente
-    if update.effective_user is None or update.effective_message is None:
-        logger.warning("Messaggio ricevuto senza informazioni di chat, utente o messaggio.")
+    if not update.effective_user:
         return
 
-    global group_users
-    chat = update.effective_chat
     user = update.effective_user
+    chat_id = update.effective_chat.id
+    # Gestisce il caso in cui l'utente non abbia uno username pubblico
+    username = user.username or f"user_{user.id}"
 
-    # Inizializza il dizionario del gruppo, se necessario
-    if chat.id not in group_users:
-        group_users[chat.id] = {}
-        logger.info(f"Nuovo gruppo aggiunto: {chat.id}")
+    # Utilizza context.bot_data per la gestione dei dati, è più sicuro delle variabili globali
+    if 'group_users' not in context.bot_data:
+        context.bot_data['group_users'] = {}
+    if chat_id not in context.bot_data['group_users']:
+        context.bot_data['group_users'][chat_id] = {}
 
-    # Se l'utente è nuovo, aggiungilo e invia notifica
-    if user.id not in group_users[chat.id]:
-        group_users[chat.id][user.id] = {
-            "id": user.id,
-            "username": user.username,
-            "feedback_fatti": 0,
-            "feedback_ricevuti": 0,
-            "verified": False,
-            "limited": False,
-            "cards_donate":   [0] * 7,
-            "cards_ricevute": [0] * 7,
-        }
-        logger.info(f"Nuovo utente aggiunto: {user.username} (ID: {user.id}) nel gruppo {chat.id}")
-        save_group_users(group_users)
+    # 1. Controlla se l'utente NON è nella cache locale del bot
+    if user.id not in context.bot_data['group_users'][chat_id]:
+        
+        # 2. Se non è in cache, controlla se esiste già su Firebase
+        user_data_from_firebase = load_user_data(chat_id, user.id)
 
-        # Invia notifica al gruppo di monitoraggio
-        await context.bot.send_message(
-            chat_id=GRUPPO_STAFF,
-            text=(
-                f"*👤 Nuovo utente aggiunto al database\\!*\n"
-                f"_🌐 Username\\:_ @{user.username or 'non disponibile'}\n"
-                f"_🔢 ID\\:_ {user.id}\n\n"
-                f"_Usa il comando \\.leggi per aggiornare il database\\._"
-            ),
-            parse_mode=ParseMode.MARKDOWN_V2
-        )
+        if user_data_from_firebase:
+            # 2a. Utente trovato su Firebase: carica i suoi dati nella cache locale
+            context.bot_data['group_users'][chat_id][user.id] = user_data_from_firebase
+            logger.info(f"Dati per l'utente {username} (ID: {user.id}) ricaricati da Firebase.")
+        else:
+            # 2b. L'utente è veramente nuovo: crea un profilo e invia notifica
+            logger.info(f"Nuovo utente {username} (ID: {user.id}) rilevato. Creo un nuovo profilo.")
+            new_user = {
+                "id": user.id,
+                "username": username,
+                "verified": False,
+                "limited": False,
+                "feedback_fatti": 0,
+                "feedback_ricevuti": 0,
+                "cards_donate": [0] * 7,
+                "cards_ricevute": [0] * 7,
+            }
+            context.bot_data['group_users'][chat_id][user.id] = new_user
+            
+            # Invia notifica al gruppo di monitoraggio
+            await context.bot.send_message(
+                chat_id=GRUPPO_STAFF,
+                text=(
+                    f"*👤 Nuovo utente aggiunto al database\\!*\n"
+                    f"_🌐 Username\\:_ @{user.username or 'non disponibile'}\n"
+                    f"_🔢 ID\\:_ {user.id}\n\n"
+                    f"_Usa il comando \\.leggi per aggiornare il database\\._"
+                ),
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
+
+    # 3. A prescindere da tutto, aggiorna lo username se è cambiato
+    current_user_data = context.bot_data['group_users'][chat_id][user.id]
+    if current_user_data.get('username') != username:
+        current_user_data['username'] = username
+        logger.info(f"Username per l'utente {user.id} aggiornato a {username}.")
+
+    # 4. Salva lo stato attuale (aggiornato) su Firebase
+    save_group_users(context.bot_data['group_users'])
+
 
 async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global pending_feedback
