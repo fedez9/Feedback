@@ -1,9 +1,10 @@
 import os
 import logging
-from typing import Set, Dict
+from typing import Set, Dict, Optional
 import firebase_admin
 from firebase_admin import credentials, db
 from dotenv import load_dotenv
+import json
 
 load_dotenv()
 
@@ -158,3 +159,28 @@ def delete_pending_feedback_entry(request_id: str) -> None:
         ref.delete()
     except Exception as e:
         logger.error(f"Errore delete_pending_feedback_entry su Firebase: {e}")
+
+def load_user_data(chat_id: int, user_id: int) -> Optional[Dict]:
+    """
+    Carica i dati di un utente specifico da Firebase.
+    Restituisce i dati dell'utente se esiste, altrimenti None.
+    """
+    try:
+        ref = db.reference(f'group_users/{chat_id}/{user_id}')
+        user_data = ref.get()
+        return user_data
+    except Exception as e:
+        logger.error(f"Errore nel caricamento dei dati per l'utente {user_id} nella chat {chat_id}: {e}")
+        return None
+
+def backup_to_json():
+    """Esegue il backup dell'intero database Firebase in un file JSON."""
+    try:
+        ref = db.reference('/')
+        data = ref.get()
+        with open('firebase_backup.json', 'w') as f:
+            json.dump(data, f, indent=4)
+        logger.info("Backup del database completato con successo.")
+    except Exception as e:
+        logger.error(f"Errore durante il backup del database: {e}")
+
