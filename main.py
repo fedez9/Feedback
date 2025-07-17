@@ -155,7 +155,7 @@ async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if len(parts) >= 2 and parts[0] == "@feedback":
             target_username = parts[1].lstrip("@")
             
-            # Cerca l'utente nel dizionario caricato
+            group_users_data = context.bot_data.get('group_users', {})
             target_user_info = None
             for uid, u_data in group_users.get(chat_id, {}).items():
                 if u_data.get("username", "").lower() == target_username.lower():
