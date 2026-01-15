@@ -117,11 +117,14 @@ async def traccia_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.bot_data['group_users'][chat_id][user.id] = new_user
             
             # Invia notifica al gruppo di monitoraggio
+            # FIX: Escaping dello username per evitare errori di parsing Markdown
+            safe_username = escape_markdown(user.username or 'non disponibile', version=2)
+            
             await context.bot.send_message(
                 chat_id=GRUPPO_STAFF,
                 text=(
                     f"*👤 Nuovo utente aggiunto al database\\!*\n"
-                    f"_🌐 Username\\:_ @{user.username or 'non disponibile'}\n"
+                    f"_🌐 Username\\:_ @{safe_username}\n"
                     f"_🔢 ID\\:_ {user.id}\n\n"
                     f"_Usa il comando \\.leggi per aggiornare il database\\._"
                 ),
@@ -136,7 +139,6 @@ async def traccia_utente(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 4. Salva lo stato attuale (aggiornato) su Firebase
     save_group_users(context.bot_data['group_users'])
-
 
 async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global pending_feedback
@@ -157,7 +159,9 @@ async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             group_users_data = context.bot_data.get('group_users', {})
             target_user_info = None
-            for uid, u_data in group_users.get(chat_id, {}).items():
+            
+            # FIX: Usa group_users_data (aggiornato) invece della variabile globale group_users (statica)
+            for uid, u_data in group_users_data.get(chat_id, {}).items():
                 if u_data.get("username", "").lower() == target_username.lower():
                     target_user_info = u_data
                     break
@@ -204,7 +208,6 @@ async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode=ParseMode.MARKDOWN_V2
             )
             logger.warning(f"Feedback con formato errato da {user.username}")
-
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -571,3 +574,4 @@ async def main() -> None:
 
 if __name__ == '__main__':
     asyncio.run(main())
+
