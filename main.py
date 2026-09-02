@@ -32,7 +32,7 @@ from comandi import (
     unverify_user,
     show_commands
 )
-from utils import add_auth, remove_auth, list_admins, list_verified_users, list_feedback_received, list_feedback_sent, handle_pagination_callback, load_admin_ids, list_limited_users
+from utils import add_auth, remove_auth, list_admins, list_verified_users, list_feedback_received, list_feedback_sent, handle_pagination_callback, load_admin_ids, list_limited_users, list_users_to_limit
 
 load_dotenv()
 
@@ -455,6 +455,7 @@ COMMAND_MAP = {
     "limita": limit_user,
     "unlimita": unlimit_user,
     "limitati": list_limited_users,
+    "dalimitare": list_users_to_limit,
     "admin": add_auth,
     "remadmin": remove_auth,
     "statistiche": genera_grafico_totale,
@@ -554,6 +555,7 @@ async def main() -> None:
     application.add_handler(CommandHandler("limita", limit_user))
     application.add_handler(CommandHandler("unlimita", unlimit_user))
     application.add_handler(CommandHandler("limitati", list_limited_users))
+    application.add_handler(CommandHandler("dalimitare", list_users_to_limit))
     application.add_handler(CommandHandler("admin", add_auth))
     application.add_handler(CommandHandler("remadmin", remove_auth))
     application.add_handler(CommandHandler("statistiche", genera_grafico_totale))
@@ -566,7 +568,7 @@ async def main() -> None:
 
     # Handler per i comandi che iniziano con '.'
     application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^\."), dot_command_handler))
-    application.add_handler(CallbackQueryHandler(handle_pagination_callback, pattern=r"^(pagina_verificati|pagina_ricevuti|pagina_inviati|pagina_limitati|pagina_admin)_(\d+)$"))
+    application.add_handler(CallbackQueryHandler(handle_pagination_callback, pattern=r"^(pagina_verificati|pagina_ricevuti|pagina_inviati|pagina_limitati|pagina_dalimitare|pagina_admin)_(\d+)$"))
 
     # Handler principali
     application.add_handler(MessageHandler(filters.PHOTO & filters.CaptionRegex(r"^@feedback"), feedback))
@@ -585,4 +587,3 @@ async def main() -> None:
 
 if __name__ == '__main__':
     asyncio.run(main())
-
