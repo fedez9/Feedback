@@ -2,7 +2,7 @@ import logging
 import os
 import json
 import requests
-from typing import Dict, Set, List
+from typing import Dict, Set, List, Optional
 from functools import wraps
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
@@ -360,12 +360,67 @@ async def list_limited_users(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
 
-@restricted
-async def list_users_to_limit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def _is_group_member(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int) -> bool:
     """
-    Stampa la lista di tutti gli utenti con un divario negativo
-    (feedback ricevuti inferiori ai feedback inviati) che NON sono
-    attualmente limitati, con paginazione e bottoni per navigare le pagine.
+    Verifica se un utente risulta ancora un membro effettivo del gruppo
+    (esclude chi ha lasciato il gruppo, è stato rimosso/bannato o non è
+    più raggiungibile).
+    """
+    try:
+        member = await context.bot.get_chat_member(chat_id, user_id)
+        return member.status not in ("left", "kicked")
+    except Exception:
+        # Utente non trovato / non più raggiungibile: non lo consideriamo membro
+        return False
+
+
+async def _get_users_by_gap_range(
+    context: ContextTypes.DEFAULT_TYPE,
+    chat_id: int,
+    users_in_chat: Dict[int, dict],
+    min_diff: Optional[int] = None,
+    max_diff: Optional[int] = None
+) -> List[Dict]:
+    """
+    Restituisce gli utenti NON limitati il cui divario (feedback ricevuti - feedback
+    inviati) rientra nell'intervallo [min_diff, max_diff] (estremi inclusi, None = illimitato),
+    filtrando solo chi risulta ancora membro effettivo del gruppo scambi.
+    """
+    result = []
+    for user_id, user_data in users_in_chat.items():
+        if user_data.get("limited"):
+            continue
+
+        feedback_ricevuti = user_data.get("feedback_ricevuti", 0)
+        feedback_fatti = user_data.get("feedback_fatti", 0)
+        diff = feedback_ricevuti - feedback_fatti
+
+        if min_diff is not None and diff < min_diff:
+            continue
+        if max_diff is not None and diff > max_diff:
+            continue
+
+        if not await _is_group_member(context, chat_id, user_id):
+            continue
+
+        username = user_data.get("username", "N/A")
+        result.append({
+            "id": user_id,
+            "username": username,
+            "divario": diff,
+            "feedback_ricevuti": feedback_ricevuti,
+            "feedback_fatti": feedback_fatti
+        })
+
+    return result
+
+
+@restricted
+async def list_users_to_warn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Stampa la lista degli utenti (ancora membri del gruppo scambi) NON limitati
+    con un divario compreso tra -1 e -20, cioè quelli da tenere d'occhio e
+    avvisare prima che il divario peggiori ulteriormente.
     """
     global group_users
     group_users = load_group_users()
@@ -378,28 +433,54 @@ async def list_users_to_limit(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return
 
-    da_limitare_data = []
-    for user_id, user_data in group_users[chat_id].items():
-        if user_data.get("limited"):
-            continue
+    da_avvisare_data = await _get_users_by_gap_range(
+        context, chat_id, group_users[chat_id], min_diff=-20, max_diff=-1
+    )
 
-        feedback_ricevuti = user_data.get("feedback_ricevuti", 0)
-        feedback_fatti = user_data.get("feedback_fatti", 0)
-        diff = feedback_ricevuti - feedback_fatti
+    if not da_avvisare_data:
+        await update.message.reply_text(
+            "_Nessun utente da avvisare al momento\\._",
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+        return
 
-        if diff < 0:
-            username = user_data.get("username", "N/A")
-            da_limitare_data.append({
-                "id": user_id,
-                "username": username,
-                "divario": diff,
-                "feedback_ricevuti": feedback_ricevuti,
-                "feedback_fatti": feedback_fatti
-            })
+    # Ordina per divario crescente (i più negativi, quindi più urgenti, in cima) e poi per username
+    da_avvisare_data.sort(key=lambda x: (x["divario"], x["username"].lower()))
+
+    await send_paginated_message(
+        update,
+        context,
+        da_avvisare_data,
+        'daavvisare',
+        '*🔔 Utenti Da Avvisare*'
+    )
+
+
+@restricted
+async def list_users_to_limit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Stampa la lista degli utenti (ancora membri del gruppo scambi) NON limitati
+    con un divario pari o inferiore a -21, cioè quelli il cui divario è ormai
+    troppo grande e vanno limitati.
+    """
+    global group_users
+    group_users = load_group_users()
+
+    chat_id = int(GRUPPO_SCAMBI)
+    if chat_id not in group_users or not group_users[chat_id]:
+        await update.message.reply_text(
+            "_Nessun utente trovato in questo gruppo\\._",
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+        return
+
+    da_limitare_data = await _get_users_by_gap_range(
+        context, chat_id, group_users[chat_id], min_diff=None, max_diff=-21
+    )
 
     if not da_limitare_data:
         await update.message.reply_text(
-            "_Nessun utente con divario negativo e non limitato trovato\\._",
+            "_Nessun utente da limitare al momento\\._",
             parse_mode=ParseMode.MARKDOWN_V2
         )
         return
@@ -451,6 +532,9 @@ async def send_paginated_message(update: Update, context: ContextTypes.DEFAULT_T
             elif command_key == 'dalimitare':
                 divario_esc = escape_markdown(str(item['divario']), version=2)
                 message_lines.append(f"{i}\\. @{username_esc} \\[`{item['id']}`\\]\\: `{divario_esc}`")
+            elif command_key == 'daavvisare':
+                divario_esc = escape_markdown(str(item['divario']), version=2)
+                message_lines.append(f"{i}\\. @{username_esc} \\[`{item['id']}`\\]\\: `{divario_esc}`")
             elif command_key == 'admin':
                 message_lines.append(f"{i}\\. @{username_esc} \\[`{item['id']}`\\]")
 
@@ -492,6 +576,9 @@ async def send_paginated_message(update: Update, context: ContextTypes.DEFAULT_T
             divario_esc = escape_markdown(str(item['divario']), version=2)
             message_lines.append(f"{index_number}\\. @{username_esc} \\[`{item['id']}`\\]\\: `{divario_esc}`")
         elif command_key == 'dalimitare':
+            divario_esc = escape_markdown(str(item['divario']), version=2)
+            message_lines.append(f"{index_number}\\. @{username_esc} \\[`{item['id']}`\\]\\: `{divario_esc}`")
+        elif command_key == 'daavvisare':
             divario_esc = escape_markdown(str(item['divario']), version=2)
             message_lines.append(f"{index_number}\\. @{username_esc} \\[`{item['id']}`\\]\\: `{divario_esc}`")
         elif command_key == 'admin':
@@ -558,6 +645,7 @@ async def handle_pagination_callback(update: Update, context: ContextTypes.DEFAU
             'inviati': '📊 Classifica Feedback Inviati',
             'limitati': '🚫 Utenti Limitati',
             'dalimitare': '⚠️ Utenti Da Limitare',
+            'daavvisare': '🔔 Utenti Da Avvisare',
             'admin': '👮‍♂️ Lista Admin Bot'
         }
         await send_paginated_message(
