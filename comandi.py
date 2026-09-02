@@ -455,6 +455,7 @@ async def show_commands(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "*\\.ricevuti* \\- _Mostra la classifica dei feedback ricevuti\\._\n"
         "*\\.inviati* \\- _Mostra la classifica dei feedback inviati\\._\n"
         "*\\.limitati* \\- _Mostra la lista degli utenti limitati\\._\n"
+        "*\\.dalimitare* \\- _Mostra gli utenti con divario negativo non ancora limitati\\._\n"
         "*\\.comandi* \\- _Mostra questa lista di comandi\\._\n\n"
         "*👮‍♀️ Comandi Staff\\:*\n"
         "*\\.addinv \\[ID\\|@username\\] \\[num\\] \\[stelle\\]* \\- _Aggiungi invii e carte\\._\n"
@@ -497,4 +498,4 @@ async def reload_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"*❌ Si è verificato un errore durante il ricaricamento dei dati\\:*\n`{e}`",
             parse_mode=ParseMode.MARKDOWN_V2
-        )    
+        )
