@@ -359,6 +359,64 @@ async def list_limited_users(update: Update, context: ContextTypes.DEFAULT_TYPE)
         '*🚫 Utenti Limitati*'
     )
 
+
+@restricted
+async def list_users_to_limit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Stampa la lista di tutti gli utenti con un divario negativo
+    (feedback ricevuti inferiori ai feedback inviati) che NON sono
+    attualmente limitati, con paginazione e bottoni per navigare le pagine.
+    """
+    global group_users
+    group_users = load_group_users()
+
+    chat_id = int(GRUPPO_SCAMBI)
+    if chat_id not in group_users or not group_users[chat_id]:
+        await update.message.reply_text(
+            "_Nessun utente trovato in questo gruppo\\._",
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+        return
+
+    da_limitare_data = []
+    for user_id, user_data in group_users[chat_id].items():
+        if user_data.get("limited"):
+            continue
+
+        feedback_ricevuti = user_data.get("feedback_ricevuti", 0)
+        feedback_fatti = user_data.get("feedback_fatti", 0)
+        diff = feedback_ricevuti - feedback_fatti
+
+        if diff < 0:
+            username = user_data.get("username", "N/A")
+            da_limitare_data.append({
+                "id": user_id,
+                "username": username,
+                "divario": diff,
+                "feedback_ricevuti": feedback_ricevuti,
+                "feedback_fatti": feedback_fatti
+            })
+
+    if not da_limitare_data:
+        await update.message.reply_text(
+            "_Nessun utente con divario negativo e non limitato trovato\\._",
+            parse_mode=ParseMode.MARKDOWN_V2
+        )
+        return
+
+    # Ordina per divario crescente (i più negativi, quindi più urgenti, in cima) e poi per username
+    da_limitare_data.sort(key=lambda x: (x["divario"], x["username"].lower()))
+
+    # Usa la funzione generica di paginazione con key 'dalimitare'
+    await send_paginated_message(
+        update,
+        context,
+        da_limitare_data,
+        'dalimitare',
+        '*⚠️ Utenti Da Limitare*'
+    )
+
+
 async def send_paginated_message(update: Update, context: ContextTypes.DEFAULT_TYPE, data_list: List[Dict], command_key: str, title: str, current_page: int = 0, message_id: int = None) -> None:
     total_items = len(data_list)
     total_pages = (total_items + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
@@ -388,6 +446,9 @@ async def send_paginated_message(update: Update, context: ContextTypes.DEFAULT_T
             elif command_key == 'inviati':
                 message_lines.append(f"{i}\\. @{username_esc} \\[`{item['id']}`\\]\\: `{item['feedback_fatti']}`")
             elif command_key == 'limitati':
+                divario_esc = escape_markdown(str(item['divario']), version=2)
+                message_lines.append(f"{i}\\. @{username_esc} \\[`{item['id']}`\\]\\: `{divario_esc}`")
+            elif command_key == 'dalimitare':
                 divario_esc = escape_markdown(str(item['divario']), version=2)
                 message_lines.append(f"{i}\\. @{username_esc} \\[`{item['id']}`\\]\\: `{divario_esc}`")
             elif command_key == 'admin':
@@ -428,6 +489,9 @@ async def send_paginated_message(update: Update, context: ContextTypes.DEFAULT_T
         elif command_key == 'inviati':
             message_lines.append(f"{index_number}\\. @{username_esc} \\[`{item['id']}`\\]\\: `{item['feedback_fatti']}`")
         elif command_key == 'limitati':
+            divario_esc = escape_markdown(str(item['divario']), version=2)
+            message_lines.append(f"{index_number}\\. @{username_esc} \\[`{item['id']}`\\]\\: `{divario_esc}`")
+        elif command_key == 'dalimitare':
             divario_esc = escape_markdown(str(item['divario']), version=2)
             message_lines.append(f"{index_number}\\. @{username_esc} \\[`{item['id']}`\\]\\: `{divario_esc}`")
         elif command_key == 'admin':
@@ -493,6 +557,7 @@ async def handle_pagination_callback(update: Update, context: ContextTypes.DEFAU
             'ricevuti': '🏆 Classifica Feedback Ricevuti',
             'inviati': '📊 Classifica Feedback Inviati',
             'limitati': '🚫 Utenti Limitati',
+            'dalimitare': '⚠️ Utenti Da Limitare',
             'admin': '👮‍♂️ Lista Admin Bot'
         }
         await send_paginated_message(
